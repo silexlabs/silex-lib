@@ -3,6 +3,8 @@
 
 ## About Silex, live web creation.
 
+> :warning: **Deprecation Warning**: This branch holds the code for Silex v2. **Support for Silex v2 has stopped**. The active branch is now [`dev`](../../tree/dev) and holds the code for Silex v3. [Try Silex v3 here](https://v3.silex.me/), [read about Silex v3](https://www.silexlabs.org/tag/v3/), [subscribe to the newsletter in English](https://news.silex.me/forms/nfrm_weLJnLY5) or [the newsletter in French](https://news.silex.me/forms/nfrm_BzLMaLXv).
+
 Silex, is a free and open source website builder in the cloud. Create websites directly in the browser without writing code. And it is suitable for professional designers to produce great websites without constraints. Silex is also known as the HTML5 editor.
 
 Brought to you by Silex Labs team, promoting free software. Feel free to [use the free Silex instance](https://editor.silex.me/) provided by [Silex Labs foundation](https://www.silexlabs.org/).
