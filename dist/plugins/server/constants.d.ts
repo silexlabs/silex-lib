@@ -29,4 +29,4 @@ export declare const API_WEBSITE_ASSETS_WRITE = "/assets";
 export declare const API_WEBSITE_META_READ = "/meta";
 export declare const API_WEBSITE_META_WRITE = "/meta";
 export declare let SILEX_VERSION: any;
-export declare let DEV_MESSAGE: string;
+export declare const DEV_MESSAGE: string;
