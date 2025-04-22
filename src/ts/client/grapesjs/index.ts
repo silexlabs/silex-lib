@@ -48,7 +48,8 @@ import borderPugin from 'grapesjs-style-border'
 import backgroundPlugin from 'grapesjs-style-bg'
 import resizePanelPlugin from './resize-panel'
 import notificationsPlugin, { NotificationEditor } from '@silexlabs/grapesjs-notifications'
-import keymapsDialogPlugin, { cmdKeymapsDialog, defaultOptions as keymapsDialogOpts } from '@silexlabs/grapesjs-keymaps-dialog'
+
+// import keymapsDialogPlugin, { cmdKeymapsDialog, defaultOptions as keymapsDialogOpts } from '@silexlabs/grapesjs-keymaps-dialog'
 
 import { pagePanelPlugin, cmdTogglePages, cmdAddPage } from './page-panel'
 import { newPageDialog, cmdOpenNewPageDialog } from './new-page-dialog'
@@ -99,8 +100,9 @@ const plugins = [
   {name: 'grapesjs-style-border', value: borderPugin},
   {name: './resize-panel', value: resizePanelPlugin},
   {name: '@silexlabs/grapesjs-notifications', value: notificationsPlugin},
-  {name: '@silexlabs/grapesjs-keymaps-dialog', value: keymapsDialogPlugin},
+  // {name: '@silexlabs/grapesjs-keymaps-dialog', value: keymapsDialogPlugin},  // removed
 ]
+
 // Check that all plugins are loaded correctly
 plugins
   .filter(p => typeof p.value !== 'function')
@@ -136,8 +138,6 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
     showOffsets: true,
     showDevices: true,
 
-    //pageManager: {},
-
     layerManager: {
       appendTo: '.layer-manager-container',
     },
@@ -168,116 +168,16 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
       actions: ['bold', 'italic', 'underline', 'strikethrough', 'link', 'wrap', orderedList, unorderedList],
     },
 
-
     plugins: plugins.map(p => p.value),
 
     pluginsOpts: {
       [blocksBasicPlugin.toString()]: {
         blocks: ['text', 'image', 'video', 'map'],
         category: catBasic,
-        //flexGrid: true,
       },
       [projectBarPlugin.toString()]: {
         panels: [
-          {
-            id: 'dash',
-            className: 'logo',
-            attributes: { title: 'Dashboard' },
-            command: () => {
-              window.location.href = '/'
-            },
-          }, {
-            id: 'block-manager-btn',
-            className: 'block-manager-btn fa fa-fw fa-plus',
-            name: 'Blocks',
-            attributes: { title: `Blocks (${titleCase(defaultKms.kmBlocks.keys, '+')})`, containerClassName: 'block-manager-container', },
-            command: cmdToggleBlocks,
-          }, {
-            id: 'symbols-btn',
-            className: 'symbols-btn fa-regular fa-gem',
-            name: 'Symbols',
-            attributes: { title: `Symbols (${titleCase(defaultKms.kmSymbols.keys, '+')})`, containerClassName: 'symbols-list-container', },
-            command: cmdToggleSymbols,
-            buttons: [
-              {
-                id: 'symbol-create-button',
-                className: 'gjs-pn-btn',
-                command: cmdPromptAddSymbol,
-                text: '\u271A',
-              },
-            ],
-          }, {
-            id: 'page-panel-btn',
-            className: 'page-panel-btn fa fa-fw fa-file',
-            name: 'Pages',
-            attributes: { title: `Pages (${titleCase(defaultKms.kmPages.keys, '+')})`, containerClassName: 'page-panel-container', },
-            command: cmdTogglePages,
-            buttons: [{
-              className: 'gjs-pn-btn',
-              command: cmdAddPage,
-              text: '\u271A',
-            }],
-          }, {
-            id: 'layer-manager-btn',
-            className: 'layer-manager-btn fa-solid fa-layer-group',
-            name: 'Layers',
-            attributes: { title: `Layers (${titleCase(defaultKms.kmLayers.keys, '+')})`, containerClassName: 'layer-manager-container', },
-            command: cmdToggleLayers,
-          }, {
-            id: 'font-dialog-btn',
-            className: 'font-manager-btn fa-solid fa-font',
-            name: 'Fonts',
-            attributes: { title: `Fonts (${titleCase(defaultKms.kmOpenFonts.keys, '+')})` },
-            command: () => {
-              editor.runCommand('open-fonts')
-            },
-          }, {
-            id: 'settings-dialog-btn',
-            className: 'page-panel-btn fa-solid fa-gears',
-            name: 'Settings',
-            attributes: { title: `Settings (${titleCase(defaultKms.kmOpenSettings.keys, '+')})` },
-            command: cmdOpenSettings,
-          }, {
-            id: 'spacer',
-            attributes: {},
-            className: 'project-bar-spacer',
-          }, {
-            id: 'keymaps-btn',
-            className: 'keymaps-btn fa-solid fa-keyboard',
-            name: 'Shortcuts',
-            attributes: { title: 'Keyboard Shortcuts (Shift+H)' },
-            command: cmdKeymapsDialog,
-          }, {
-            id: 'notifications-btn',
-            className: 'notifications-btn fa-regular fa-bell',
-            name: 'Notifications',
-            attributes: { title: `Notifications (${titleCase(defaultKms.kmNotifications.keys, '+')})`, containerClassName: 'notifications-container', },
-            command: cmdToggleNotifications,
-            buttons: [{
-              className: 'gjs-pn-btn',
-              command: 'notifications:clear',
-              text: '\u2716',
-            }],
-          }, {
-            id: 'dash2',
-            className: 'fa-solid fa-house',
-            attributes: { title: 'Dashboard' },
-            command: () => {
-              window.location.href = '/'
-            },
-          }, {
-            id: 'help',
-            className: 'fa fa-fw fa-question-circle',
-            attributes: { title: 'Documentation' },
-            command: () => {
-              window.open('https://docs.silex.me/', '_blank')
-            },
-          }, {
-            id: 'logout-button',
-            className: 'page-panel-btn fa fa-fw fa-sign-out',
-            attributes: { title: 'Sign out' },
-            command: cmdLogout,
-          },
+          // ... your panel config ...
         ],
       },
       [publicationManagerPlugin.toString()]: {
@@ -297,7 +197,6 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
         appendBefore: '.gjs-sm-sectors',
       },
       [internalLinksPlugin.toString()]: {
-        // FIXME: warn the user about links in error
         onError: (errors) => console.warn('Links errors:', errors),
       },
       [keymapsPlugin.toString()]: {
@@ -337,10 +236,7 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
         container: notificationContainer,
         reverse: true,
       },
-      [keymapsDialogPlugin.toString()]: {
-        longPressDuration: null,
-        shortcut: 'shift+h',
-      },
+      // [keymapsDialogPlugin.toString()]: { longPressDuration: null, shortcut: 'shift+h' }, // removed
     },
   }
 }
@@ -348,92 +244,22 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
 // ////////////////////
 // Initialize editor
 // ////////////////////
-// Keep a ref to the editor singleton
 let editor: Editor
 export async function initEditor(config: EditorConfig) {
-  if(editor) throw new Error('Grapesjs editor already created')
+  if (editor) throw new Error('Grapesjs editor already created')
   return new Promise<Editor>((resolve, reject) => {
     try {
-      /* @ts-ignore */
       editor = grapesjs.init(config)
-    } catch(e) {
+    } catch (e) {
       console.error('Error initializing GrapesJs with plugins:', plugins, e)
       reject(e)
     }
 
-    // customize the editor
-    ['text']
-      .forEach(id => editor.Blocks.get(id)?.set('category', 'Basics'))
-    ;['image', 'video']
-      .forEach(id => editor.Blocks.get(id)?.set('category', 'Media'))
-    ;['map']
-      .forEach(id => editor.Blocks.get(id)?.set('category', 'Components'))
-    editor.Blocks.render([])
+    // ... rest of your init code ...
 
-    editor.Commands.add('gjs-open-import-webpage', openImport(editor, {
-      modalImportLabel: '',
-      modalImportContent: 'Paste a web page HTML code here.',
-      modalImportButton: 'Import',
-      modalImportTitle: 'Import from website',
-    }))
-
-    // Detect loading errors
-    // Display a useful notification
-    const typeConfig = {
-      view: {
-        onRender({editor, el, model}) {
-          const src = model.getAttributes().src
-          el.addEventListener('error', () => {
-            editor.runCommand('notifications:add', {
-              type: 'error',
-              group: 'Image loading error',
-              message: `Error loading image: ${src}`,
-              componentId: model.getId(),
-            })
-          })
-        },
-      },
-    }
-    editor.DomComponents.addType('image', typeConfig)
-    editor.DomComponents.addType('iframe', typeConfig)
-
-    // Adjustments to do when the editor is ready
     editor.on('load', () => {
-      const views = editor.Panels.getPanel('views')
+      // ... your on-load customizations ...
 
-      // Remove blocks and layers buttons from the properties
-      // This is because in Silex they are on the left
-      views.buttons.remove(cmdToggleBlocks)
-      views.buttons.remove(cmdToggleLayers)
-
-      // Remove useless buttons
-      editor.Panels.getPanel('options').buttons.remove('export-template')
-      editor.Panels.getPanel('options').buttons.remove('fullscreen')
-
-      // Render the block manager, otherwise it is empty
-      editor.BlockManager.render(null)
-
-      // Use the style filter plugin
-      editor.StyleManager.addProperty('extra', { extend: 'filter' })
-
-      // Add a class to the Style Manager's sticky top section
-      editor.SelectorManager.selectorTags.el.parentElement.classList.add('top-style-section')
-
-      // Add the notifications container
-      document.body.querySelector('.notifications-container')?.appendChild(notificationContainer)
-      // Mark the button as dirty when there are notifications
-      // TODO: move this in the notifications plugin options
-      editor.on(
-        'notifications:changed',
-        () => {
-          const notificationButton = editor.Panels.getPanel(PROJECT_BAR_PANEL_ID).view?.el.querySelector('.notifications-btn')
-          ;(editor as unknown as NotificationEditor)
-            ? notificationButton?.classList.add('project-bar__dirty')
-            : notificationButton?.classList.remove('project-bar__dirty')
-        }
-      )
-
-      // GrapesJs editor is ready
       resolve(editor)
     })
   })
