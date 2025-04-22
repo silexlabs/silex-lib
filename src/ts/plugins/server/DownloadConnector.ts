@@ -119,7 +119,8 @@ export default class implements HostingConnector<DownloadConnectorSession> {
         for (const file of files) {
           job.message = `Adding ${file.path} to the zip file`
           // Handle content as string, buffer or readable
-          archive.append(file.content, { name: file.path })
+          const safeName = file.path || `file-${Date.now()}.html`
+          archive.append(file.content, { name: Buffer.from(safeName, 'utf8').toString() })
         }
 
         // finalize the archive (ie we are done appending files but streams have to finish yet)
