@@ -1,11 +1,6 @@
 import { ServerConfig } from '../../server/config';
 import { ConnectorFile, ConnectorFileContent, StatusCallback, StorageConnector } from '../../server/connectors/connectors';
 import { ConnectorType, ConnectorUser, WebsiteData, WebsiteId, WebsiteMeta, WebsiteMetaFileContent } from '../../types';
-/**
- * Gitlab connector
- * @fileoverview Gitlab connector for Silex, connect to the user's Gitlab account to store websites
- * @see https://docs.gitlab.com/ee/api/oauth2.html
- */
 export interface GitlabOptions {
     clientId: string;
     clientSecret: string;
@@ -94,7 +89,8 @@ export default class GitlabConnector implements StorageConnector {
     /**
      * Call the Gitlab API with the user's token and handle errors
      */
-    callApi(session: GitlabSession, path: string, method?: 'POST' | 'GET' | 'PUT' | 'DELETE', body?: GitlabWriteFile | GitlabGetToken | GitlabWebsiteName | GitlabCreateBranch | GitlabGetTags | GitlabCreateTag | GitlabFetchCommits | null, params?: any): Promise<any>;
+    callApi(session: GitlabSession, path: string, method?: 'POST' | 'GET' | 'PUT' | 'DELETE', requestBody?: GitlabWriteFile | GitlabGetToken | GitlabWebsiteName | GitlabCreateBranch | GitlabGetTags | GitlabCreateTag | GitlabFetchCommits | null, params?: any): Promise<any>;
+    downloadRawFile(session: GitlabSession, projectId: string, filePath: string): Promise<Buffer>;
     private generateCodeVerifier;
     private generateCodeChallenge;
     private getRedirect;
@@ -122,14 +118,27 @@ export default class GitlabConnector implements StorageConnector {
     logout(session: GitlabSession): Promise<void>;
     getUser(session: GitlabSession): Promise<ConnectorUser>;
     listWebsites(session: GitlabSession): Promise<WebsiteMeta[]>;
+    /**
+     * Read the website data
+     * The website data file is named `website.json` and the pages are named `page-{id}.json`
+     * The pages are stored in the `src` folder by default
+     */
     readWebsite(session: GitlabSession, websiteId: string): Promise<WebsiteData>;
+    /**
+     * Create a new website, i.e. a new Gitlab repository with an empty website data file
+     */
     createWebsite(session: GitlabSession, websiteMeta: WebsiteMetaFileContent): Promise<WebsiteId>;
+    /**
+     * Update the website data
+     * Split the website data into 1 file per page + 1 file for the website data itself
+     * Use gitlab batch API to create/update the files
+     */
     updateWebsite(session: GitlabSession, websiteId: WebsiteId, websiteData: WebsiteData): Promise<void>;
     deleteWebsite(session: GitlabSession, websiteId: WebsiteId): Promise<void>;
     duplicateWebsite(session: GitlabSession, websiteId: string): Promise<void>;
     getWebsiteMeta(session: GitlabSession, websiteId: WebsiteId): Promise<WebsiteMeta>;
     setWebsiteMeta(session: GitlabSession, websiteId: WebsiteId, websiteMeta: WebsiteMetaFileContent): Promise<void>;
-    writeAssets(session: GitlabSession, websiteId: string, files: ConnectorFile[], status?: StatusCallback | undefined): Promise<void>;
+    writeAssets(session: GitlabSession, websiteId: string, files: ConnectorFile[], status?: StatusCallback): Promise<void>;
     readAsset(session: GitlabSession, websiteId: string, fileName: string): Promise<ConnectorFileContent>;
     deleteAssets(session: GitlabSession, websiteId: string, fileNames: string[]): Promise<void>;
 }

@@ -49,6 +49,23 @@ const node_fetch_1 = __importDefault(require("node-fetch"));
 const crypto_1 = __importStar(require("crypto"));
 const path_1 = require("path");
 const https_1 = require("https");
+const page_1 = require("../../page");
+/**
+ * Gitlab connector
+ * @fileoverview Gitlab connector for Silex, connect to the user's Gitlab account to store websites
+ * @see https://docs.gitlab.com/ee/api/oauth2.html
+ */
+const MAX_BATCH_UPLOAD_SIZE = 100;
+const MAX_BODY_SIZE_KB = 8 * 1000 * 1024; // 8MB (note that 10 MB PNG → becomes ~13.3 MB → ❌ often too big for Gitlab)
+// interface MetaRepoFileContent {
+//   websites: {
+//     [websiteId: string]: {
+//       meta: WebsiteMetaFileContent,
+//       createdAt: string,
+//       updatedAt: string,
+//     }
+//   }
+// }
 const svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg
    xmlns:svg="http://www.w3.org/2000/svg"
@@ -138,8 +155,11 @@ class GitlabConnector {
     }
     // **
     // Convenience methods for the Gitlab API
-    getAssetPath(path) {
-        return encodeURIComponent((0, path_1.join)(this.options.assetsFolder, path));
+    getAssetPath(path, encode = true) {
+        const resolvedPath = (0, path_1.join)(this.options.assetsFolder, path);
+        if (encode)
+            return encodeURIComponent(resolvedPath);
+        return resolvedPath;
     }
     isUsingOfficialInstance() {
         const gitlabDomainRegexp = /(^|\b)(gitlab\.com)($|\b)/;
@@ -170,53 +190,14 @@ class GitlabConnector {
         });
     }
     async readFile(session, websiteId, fileName) {
+        // Remove leading slash
         const safePath = fileName.replace(/^\//, '');
-        // Call the API
-        const url = `${this.options.domain}/api/v4/projects/${websiteId}/repository/files/${safePath}?ref=${this.options.branch}&access_token=${this.getSessionToken(session).token?.access_token}`;
-        const response = await (0, node_fetch_1.default)(url, {
-            agent: this.getAgent(),
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-        });
-        const json = await response.json();
-        if (!response.ok)
-            throw new types_1.ApiError(`Error reading file "${fileName}" from Gitlab: ${json?.message ?? json?.error ?? response.statusText}`, response.status);
-        // From base64 string to buffer
-        const buf = Buffer.from(json.content, 'base64');
-        // Return the image bytes
-        return buf;
+        return this.downloadRawFile(session, websiteId, safePath);
     }
-    /*
-     * Get the meta repo path for the current user
-     * The meta repo contains a JSON file which contains the list of websites
-     */
-    //private getMetaRepoPath(session: GitlabSession): string {
-    //  if(!this.getSessionToken(session).username) throw new ApiError('Missing Gitlab user ID. User not logged in?', 401)
-    //  return encodeURIComponent(`${this.getSessionToken(session).username}/${this.options.metaRepo}`)
-    //}
-    ///**
-    // * Initialize the storage with a meta repo
-    // */
-    //private async initStorage(session: GitlabSession): Promise<void> {
-    //  // Create the meta repo
-    //  try {
-    //    const project = await this.callApi(session, 'api/v4/projects/', 'POST', {
-    //      name: this.options.metaRepo,
-    //    }) as any
-    //    return this.createFile(session, this.getMetaRepoPath(session), this.options.metaRepoFile, JSON.stringify({
-    //      websites: {}
-    //    } as MetaRepoFileContent))
-    //  } catch (e) {
-    //    console.error('Could not init storage', e.statusCode, e.httpStatusCode, e)
-    //    throw e
-    //  }
-    //}
     /**
      * Call the Gitlab API with the user's token and handle errors
      */
-    async callApi(session, path, method = 'GET', body = null, params = {}) {
+    async callApi(session, path, method = 'GET', requestBody = null, params = {}) {
         const token = this.getSessionToken(session).token;
         const tokenParam = token ? `access_token=${token.access_token}&` : '';
         const paramsStr = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v.toString())}`).join('&');
@@ -224,17 +205,22 @@ class GitlabConnector {
         const headers = {
             'Content-Type': 'application/json',
         };
-        if (method === 'GET' && body) {
-            console.error('Gitlab API error (4) - GET request with body', { url, method, body, params });
+        if (method === 'GET' && requestBody) {
+            console.error('Gitlab API error (4) - GET request with body', { url, method, body: requestBody, params });
         }
         // With or without body
         let response;
+        const body = requestBody ? JSON.stringify(requestBody) : undefined;
         try {
-            response = await (0, node_fetch_1.default)(url, body && method !== 'GET' ? {
+            if (body && Buffer.byteLength(body) > MAX_BODY_SIZE_KB * 1024) {
+                // TODO: warn the end user
+                console.warn('Gitlab API warning - body too big', Buffer.byteLength(body), 'bytes', { url, method, params });
+            }
+            response = await (0, node_fetch_1.default)(url, requestBody && method !== 'GET' ? {
                 agent: this.getAgent(),
                 method,
                 headers,
-                body: body ? JSON.stringify(body) : undefined
+                body,
             } : {
                 agent: this.getAgent(),
                 method,
@@ -243,12 +229,20 @@ class GitlabConnector {
         }
         catch (e) {
             console.error('Gitlab API error (0)', e);
-            throw new types_1.ApiError(`Gitlab API error (0): ${e.message} ${e.code} ${e.name} ${e.type}`, 500);
+            throw new types_1.ApiError(`Gitlab API error (0): ${e.message} ${e.text} ${e.code} ${e.name} ${e.type}`, 500);
         }
-        let json;
         // Handle the case when the server returns a non-JSON response (e.g. 400 Bad Request)
-        const text = await response.text();
+        const text = await async function () {
+            try {
+                return await response.text();
+            }
+            catch (e) {
+                console.error('Gitlab API error (6) - could not parse response', response.status, response.statusText, { url, method, body: requestBody, params }, e);
+                throw new types_1.ApiError(`Gitlab API error (6): response body not available. ${e.message}`, 500);
+            }
+        }();
         if (!response.ok) {
+            console.error('Gitlab API error (7) - response not ok', response.status, response.statusText, { url, method, body: requestBody, params, text: text });
             if (text.includes('A file with this name doesn\'t exist')) {
                 throw new types_1.ApiError('Gitlab API error (5): Not Found', 404);
             }
@@ -290,11 +284,12 @@ class GitlabConnector {
                 }
             }
             else {
-                const message = typeof json?.message === 'object' ? Object.entries(json.message).map(entry => entry.join(' ')).join(' ') : json?.message ?? json?.error ?? response.statusText;
-                console.error('Gitlab API error (1)', response.status, response.statusText, { url, method, body, params, text, message });
-                throw new types_1.ApiError(`Gitlab API error (1): ${message}`, response.status);
+                const message = response.statusText;
+                console.error('Gitlab API error (1)', response.status, response.statusText, { url, method, body: requestBody, params, text: text, message });
+                throw new types_1.ApiError(`Gitlab API error (1): ${message} (${text})`, response.status);
             }
         }
+        let json;
         try {
             json = JSON.parse(text);
         }
@@ -305,11 +300,43 @@ class GitlabConnector {
             }
             else {
                 // Useless error linked to the fact that the response is not JSON
-                console.error('Gitlab API error (3) - could not parse response', response.status, response.statusText, { url, method, body, params, text });
+                console.error('Gitlab API error (3) - could not parse response', response.status, response.statusText, { url, method, body: requestBody, params, text: text });
                 return text;
             }
         }
         return json;
+    }
+    async downloadRawFile(session, projectId, filePath) {
+        const token = this.getSessionToken(session).token?.access_token;
+        const domain = this.options.domain;
+        const branch = this.options.branch;
+        // Construct the raw URL
+        // GET /projects/:id/repository/files/:file_path/raw
+        const rawUrl = `${domain}/api/v4/projects/${projectId}/repository/files/${encodeURIComponent(filePath)}/raw?ref=${branch}&access_token=${token}`;
+        const fileRes = await (0, node_fetch_1.default)(rawUrl, {
+            agent: this.getAgent(),
+        });
+        const contentType = fileRes.headers.get('content-type');
+        if (contentType?.includes('text/html')) {
+            const html = await fileRes.text();
+            throw new types_1.ApiError('GitLab returned HTML instead of file (unauthorized or not found).', 401);
+        }
+        if (!fileRes.ok) {
+            const errText = await fileRes.text();
+            if (errText.includes('not found') || fileRes.status === 404) {
+                throw new types_1.ApiError('GitLab raw error (5): Not Found', 404);
+            }
+            console.error('GitLab raw error (1)', fileRes.status, fileRes.statusText, { rawUrl, errText });
+            throw new types_1.ApiError(`GitLab raw error (1): ${fileRes.statusText} (${errText})`, fileRes.status);
+        }
+        try {
+            const buffer = await fileRes.buffer();
+            return buffer;
+        }
+        catch (e) {
+            console.error('GitLab raw error (3): could not read buffer', e);
+            throw new types_1.ApiError('GitLab raw error (3): failed to read binary content', 500);
+        }
     }
     generateCodeVerifier() {
         return crypto_1.default.randomBytes(64).toString('base64')
@@ -480,15 +507,41 @@ class GitlabConnector {
             connectorUserSettings: {},
         }));
     }
+    /**
+     * Read the website data
+     * The website data file is named `website.json` and the pages are named `page-{id}.json`
+     * The pages are stored in the `src` folder by default
+     */
     async readWebsite(session, websiteId) {
-        const result = await this.callApi(session, `api/v4/projects/${websiteId}/repository/files/${constants_1.WEBSITE_DATA_FILE}`, 'GET', null, {
-            ref: this.options.branch,
-        });
-        const { content } = result;
-        const contentDecoded = Buffer.from(content, 'base64').toString('utf8');
-        const websiteData = JSON.parse(contentDecoded);
-        return websiteData;
+        const websiteDataBuf = await this.downloadRawFile(session, websiteId, constants_1.WEBSITE_DATA_FILE);
+        const websiteData = JSON.parse(websiteDataBuf.toString('utf8'));
+        // If the website pages are not in the main file, we need to read them
+        // This happens when the website was just created
+        // Let grapesjs create the pages in the frontend
+        if (!websiteData.pages) {
+            return websiteData;
+        }
+        // Load each page in parallel
+        const pages = await Promise.all(websiteData.pages.map(async (page) => {
+            if (page.isFile) {
+                const name = (0, page_1.getPageSlug)(page.name);
+                const fileName = (`${((0, page_1.getPageSlug)(page.name))}-${page.id}`);
+                const filePath = `${constants_1.WEBSITE_PAGES_FOLDER}/${fileName}.json`;
+                const pageContent = await this.downloadRawFile(session, websiteId, filePath);
+                const res = JSON.parse(pageContent.toString('utf8'));
+                return res;
+            }
+            return page;
+        }));
+        // Read each page file if needed
+        return {
+            ...websiteData,
+            pages,
+        };
     }
+    /**
+     * Create a new website, i.e. a new Gitlab repository with an empty website data file
+     */
     async createWebsite(session, websiteMeta) {
         const project = await this.callApi(session, 'api/v4/projects/', 'POST', {
             name: this.options.repoPrefix + websiteMeta.name,
@@ -499,13 +552,70 @@ class GitlabConnector {
         //await this.setWebsiteMeta(session, project.id, websiteMeta)
         return project.id;
     }
+    /**
+     * Update the website data
+     * Split the website data into 1 file per page + 1 file for the website data itself
+     * Use gitlab batch API to create/update the files
+     */
     async updateWebsite(session, websiteId, websiteData) {
-        const project = await this.callApi(session, `api/v4/projects/${websiteId}/repository/files/${constants_1.WEBSITE_DATA_FILE}`, 'PUT', {
+        const batchActions = [];
+        // List existing files in the pages folder
+        let existingFiles = [];
+        try {
+            const files = await this.callApi(session, `api/v4/projects/${websiteId}/repository/tree`, 'GET', null, {
+                path: constants_1.WEBSITE_PAGES_FOLDER,
+                recursive: false,
+            });
+            existingFiles = files.map(file => file.path);
+        }
+        catch (e) {
+            if (e.statusCode !== 404 && e.httpStatusCode !== 404) {
+                throw e;
+            }
+        }
+        // Prepare actions for each page
+        const pages = websiteData.pages.map((page) => {
+            const file_name = encodeURIComponent(`${((0, page_1.getPageSlug)(page.name))}-${page.id}`);
+            const file_path = (`${constants_1.WEBSITE_PAGES_FOLDER}/${file_name}.json`);
+            const content = JSON.stringify(page);
+            // Determine whether to create or update the file
+            if (existingFiles.includes(file_path)) {
+                batchActions.push({
+                    action: 'update',
+                    file_path,
+                    content,
+                });
+            }
+            else {
+                batchActions.push({
+                    action: 'create',
+                    file_path,
+                    content,
+                });
+            }
+            return {
+                name: page.name,
+                id: page.id,
+                isFile: true,
+            };
+        });
+        // Prepare the main website data file
+        const websiteDataWithGitlabPages = {
+            ...websiteData,
+            pages,
+        };
+        batchActions.push({
+            action: 'update',
+            file_path: constants_1.WEBSITE_DATA_FILE,
+            content: JSON.stringify(websiteDataWithGitlabPages),
+        });
+        // Perform a single batch commit
+        const batch = {
             branch: this.options.branch,
             commit_message: 'Update website data from Silex',
-            content: JSON.stringify(websiteData),
-            id: websiteId,
-        });
+            actions: batchActions,
+        };
+        await this.callApi(session, `api/v4/projects/${websiteId}/repository/commits`, 'POST', batch);
     }
     async deleteWebsite(session, websiteId) {
         // Delete repo
@@ -524,7 +634,6 @@ class GitlabConnector {
         //  branch: this.options.branch,
         //  commit_message: `Delete meta data of ${data.meta.name} (${websiteId}) from Silex`,
         //  content: JSON.stringify(metaRepo),
-        //  file_path: this.options.metaRepoFile,
         //})
     }
     async duplicateWebsite(session, websiteId) {
@@ -544,10 +653,10 @@ class GitlabConnector {
         });
         // Upload all files
         for (const file of files) {
-            const path = encodeURIComponent(file);
-            const content = await this.readFile(session, websiteId, path);
+            const content = await this.readFile(session, websiteId, file);
             // From buffer to string
             const contentStr = content.toString('base64');
+            const path = encodeURIComponent(file);
             switch (file) {
                 case constants_1.WEBSITE_DATA_FILE:
                     await this.updateFile(session, newId, path, contentStr, true);
@@ -586,24 +695,6 @@ class GitlabConnector {
         };
     }
     async setWebsiteMeta(session, websiteId, websiteMeta) {
-        //// Load the meta repo data
-        //const file = await this.callApi(session, `api/v4/projects/${this.getMetaRepoPath(session)}/repository/files/${this.options.metaRepoFile}`, 'GET', null, {
-        //  ref: this.options.branch,
-        //})
-        //const metaRepo = JSON.parse(Buffer.from(file.content, 'base64').toString('utf8')) as MetaRepoFileContent
-        //// Update or create the website meta data
-        //metaRepo.websites[websiteId] = {
-        //  updatedAt: new Date().toISOString(),
-        //  createdAt: metaRepo.websites[websiteId]?.createdAt ?? new Date().toISOString(),
-        //  meta: websiteMeta,
-        //}
-        //// Save the meta repo data
-        //const project = await this.callApi(session, `api/v4/projects/${this.getMetaRepoPath(session)}/repository/files/${this.options.metaRepoFile}`, 'PUT', {
-        //  branch: this.options.branch,
-        //  commit_message: `Update website meta data of ${websiteMeta.name} (${websiteId}) from Silex`,
-        //  content: JSON.stringify(metaRepo),
-        //  file_path: this.options.metaRepoFile,
-        //})
         // Rename the repo if needed
         const oldMeta = await this.getWebsiteMeta(session, websiteId);
         if (websiteMeta.name !== oldMeta.name) {
@@ -611,41 +702,64 @@ class GitlabConnector {
                 name: this.options.repoPrefix + websiteMeta.name,
             });
         }
-        //// Update the metadata file
-        //await this.callApi(session, `api/v4/projects/${websiteId}/repository/files/${WEBSITE_META_DATA_FILE}`, 'PUT', {
-        //  branch: this.options.branch,
-        //  commit_message: 'Update website meta data from Silex',
-        //  content: JSON.stringify(websiteMeta),
-        //  file_path: WEBSITE_META_DATA_FILE,
-        //  id: websiteId,
-        //})
     }
     async writeAssets(session, websiteId, files, status) {
-        status && await status({ message: 'in progress...', status: types_1.JobStatus.IN_PROGRESS });
-        // For each file
-        for (const file of files) {
-            // Convert to base64
-            const content = (await (0, connectors_1.contentToBuffer)(file.content)).toString('base64');
-            const path = this.getAssetPath(file.path);
+        status && await status({ message: `Preparing ${files.length} files`, status: types_1.JobStatus.IN_PROGRESS });
+        // List all the files in the repo
+        const existingPaths = new Set();
+        let page = 1;
+        let keepGoing = true;
+        while (keepGoing) {
+            const tree = await this.callApi(session, `api/v4/projects/${websiteId}/repository/tree`, 'GET', null, {
+                recursive: true,
+                per_page: 100,
+                page,
+            });
+            for (const f of tree) {
+                if (f.type === 'blob')
+                    existingPaths.add(f.path);
+            }
+            keepGoing = tree.length === 100;
+            page++;
+        }
+        // Split the files into chunks to avoid the number of files limit
+        const chunks = [];
+        for (let i = 0; i < files.length; i += MAX_BATCH_UPLOAD_SIZE) {
+            chunks.push(files.slice(i, i + MAX_BATCH_UPLOAD_SIZE));
+        }
+        for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+            const chunk = chunks[chunkIndex];
+            status && await status({ message: `Batch ${chunkIndex + 1}/${chunks.length}: Downloading assets`, status: types_1.JobStatus.IN_PROGRESS });
+            // Create the actions for the batch
+            const actions = await Promise.all(chunk.map(async (file) => {
+                const content = (await (0, connectors_1.contentToBuffer)(file.content)).toString('base64');
+                const file_path = this.getAssetPath(file.path, false);
+                const actionType = existingPaths.has(file_path) ? 'update' : 'create';
+                return {
+                    action: actionType,
+                    file_path,
+                    content,
+                    encoding: 'base64',
+                };
+            }));
+            status && await status({ message: `Batch ${chunkIndex + 1}/${chunks.length}: Uploading assets`, status: types_1.JobStatus.IN_PROGRESS });
             try {
-                await this.updateFile(session, websiteId, path, content, true);
+                await this.callApi(session, `api/v4/projects/${websiteId}/repository/commits`, 'POST', {
+                    branch: 'main',
+                    commit_message: `Batch update assets (${chunkIndex + 1}/${chunks.length})`,
+                    actions,
+                });
             }
             catch (e) {
-                // If the file does not exist, create it
-                if (e.statusCode === 404 || e.httpStatusCode === 404 || e.message.endsWith('A file with this name doesn\'t exist')) {
-                    await this.createFile(session, websiteId, path, content, true);
-                }
-                else {
-                    status && await status({ message: 'Error', status: types_1.JobStatus.ERROR });
-                    throw e;
-                }
+                console.error(`Batch ${chunkIndex + 1} failed`, e);
+                status && await status({ message: `Error in batch ${chunkIndex + 1}`, status: types_1.JobStatus.ERROR });
+                throw e;
             }
         }
-        status && await status({ message: 'Successfull', status: types_1.JobStatus.SUCCESS });
+        status && await status({ message: 'All files uploaded successfully', status: types_1.JobStatus.SUCCESS });
     }
     async readAsset(session, websiteId, fileName) {
-        // Remove leading slash
-        const finalPath = this.getAssetPath(fileName);
+        const finalPath = this.getAssetPath(fileName, false);
         return this.readFile(session, websiteId, finalPath);
     }
     async deleteAssets(session, websiteId, fileNames) {

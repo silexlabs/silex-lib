@@ -61,8 +61,14 @@ export const storagePlugin = (editor: PublishableEditor) => {
         if (data.assets) data.assets = addTempDataToAssetUrl(data.assets, options.id, user.storage.connectorId)
         if (data.styles) data.styles = addTempDataToStyles(data.styles, options.id, user.storage.connectorId)
         //setTimeout(() => progressiveLoadPages(editor, data))
-        await progressiveLoadPages(editor, data)
-        return {}
+        if (!data.pages) {
+          // This happens when the website was just created
+          // Let grapesjs create the pages in the frontend
+          return data
+        } else {
+          await progressiveLoadPages(editor, data)
+          return {}
+        }
       } catch (err) {
         editor.UndoManager.clear()
         if (err.httpStatusCode === 401) {
@@ -206,6 +212,13 @@ async function progressiveLoadPages(editor: PublishableEditor, data: ProjectData
   document.querySelector('.silex-loader').innerHTML = 'Loading styles and assets'
   if (data.styles) editor.setStyle(data.styles)
   if (data.assets) editor.AssetManager.add(data.assets)
+
+  await nextFrame()
+  setTimeout(() => {
+    // FIXME: Why is this setTimeout needed?
+    editor.trigger('storage:end:load', data)
+    editor.trigger('canvas:frame:load', editor)
+  })
 
   // Sélectionner la première page
   const firstPage = editor.Pages.getAll()[0]
