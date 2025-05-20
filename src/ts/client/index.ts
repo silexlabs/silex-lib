@@ -21,6 +21,10 @@
  *
  */
 
+
+import grapesjs from 'grapesjs'
+//import gjsThemeMode from '../plugins/grapesjs-theme-mode'; // chemin relatif
+
 import { Component, ComponentView } from 'grapesjs'
 import { DEV_MESSAGE } from '../constants'
 import { ClientConfig } from './config'
@@ -36,6 +40,15 @@ export * from './expose'
  * Expose the config object
  */
 export let config: ClientConfig
+
+
+// const editor = grapesjs.init({
+//   //container: '#gjs',
+//   plugins: [ gjsThemeMode ],
+//   pluginsOpts: { 'gjs-theme-mode': {} }
+// });
+
+
 
 /**
  * Start Silex, called from host HTML page with window.silex.start()
