@@ -3,6 +3,9 @@ import { expect, jest, beforeEach, afterEach, it, describe } from '@jest/globals
 import { ConnectorType, WebsiteData, WebsiteId } from '../../types'
 import { Readable } from 'stream'
 
+import path from 'path' 
+
+
 const mocks = {
   access: jest.fn(),
   close: jest.fn(),
@@ -32,6 +35,12 @@ const dummySession = {
   },
 }
 const dummyId: WebsiteId = 'dummy id'
+
+// expect(mocks.uploadFrom.mock.calls[0][1]).toBe(
+//   path.join(storageRootPath, dummyId, 'website.json')
+// )
+
+
 const dummyWebsite: WebsiteData = {
   pages: [],
   assets: [],
@@ -64,7 +73,8 @@ describe('FtpConnector website', () => {
     await connector.updateWebsite(dummySession, dummyId, dummyWebsite)
     expect(mocks.uploadFrom).toHaveBeenCalledTimes(1)
     expect(mocks.uploadFrom.mock.calls[0][0]).toBeInstanceOf(Readable)
-    expect(mocks.uploadFrom.mock.calls[0][1]).toBe(`${storageRootPath}/${dummyId}/website.json`)
+    //expect(mocks.uploadFrom.mock.calls[0][1]).toBe(`${storageRootPath}/${dummyId}/website.json`)
+    expect(mocks.uploadFrom.mock.calls[0][1]).toBe(path.join(storageRootPath, dummyId, 'website.json'))
   })
 })
 
@@ -77,6 +87,7 @@ describe('FtpConnector assets', () => {
     await connector.writeAssets(dummySession, dummyId, assets)
     expect(mocks.uploadFrom).toHaveBeenCalledTimes(1)
     expect(mocks.uploadFrom.mock.calls[0][0]).toBeInstanceOf(Readable)
-    expect(mocks.uploadFrom.mock.calls[0][1]).toBe(`${storageRootPath}/${dummyId}/${assetsFolder}/${assets[0].path}`)
-  })
+    //expect(mocks.uploadFrom.mock.calls[0][1]).toBe(`${storageRootPath}/${dummyId}/${assetsFolder}/${assets[0].path}`)
+    expect(mocks.uploadFrom.mock.calls[0][1]).toBe(path.join(storageRootPath, dummyId, assetsFolder, assets[0].path)
+    )  })
 })

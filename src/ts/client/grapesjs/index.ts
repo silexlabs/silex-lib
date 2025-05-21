@@ -18,12 +18,89 @@
 import grapesjs, { Editor, EditorConfig } from 'grapesjs'
 import openImport from './openImport'
 
+
+import gjsThemeMode from  '../../plugins/grapesjs-theme-mode'
+
 /**
  * @fileoverview This is where grapes config gets created
  * Handle plugins, options and initialization of the editor
  */
 
 const notificationContainer = document.createElement('div')
+
+// grapesjs.plugins.add('gjs-theme-switcher', (editor) => {
+//   // 1. Crée ton mini "état" (state)
+//   const state = {
+//     mode: 'both',
+//     setMode(newMode) {
+//       this.mode = newMode;
+//       console.log('Mode changé :', this.mode);
+//     },
+//     getMode() {
+//       return this.mode;
+//     },
+//   };
+
+//   (editor as any).themeModeState = state;
+
+//   // 2. Ajoute un <select> dans le panneau de style
+//   const injectSelect = () => {
+//     const asm = document.getElementById('asm-container');
+//     if (!asm || (asm as any)._themeModeInjected) return;
+//     (asm as any)._themeModeInjected = true;
+
+
+//     const select = document.createElement('select');
+//     select.className = 'gjs-sm-mode';
+//     select.style.margin = '0 4px';
+//     select.innerHTML = `
+//       <option value="both">Both</option>
+//       <option value="light">Light only</option>
+//       <option value="dark">Dark only</option>
+//     `;
+
+//     select.value = state.getMode();
+
+//     select.addEventListener('change', (e) => {
+//       const mode = (e.target as HTMLSelectElement).value;
+//       state.setMode(mode);
+
+//       // Change aussi le data-theme du document HTML
+//       const htmlEl = editor.Canvas.getFrameEl().contentDocument.documentElement;
+//       htmlEl.setAttribute('data-theme', mode === 'both' ? '' : mode);
+//     });
+
+//     asm.prepend(select);
+//   };
+
+//   // Injecte le select à l'ouverture
+//   editor.on('component:selected', injectSelect);
+//   editor.on('styleManager:open', injectSelect);
+
+//   // 3. Quand un style est modifié, scoper la règle au mode actuel
+//   editor.on('style:property:update', (propArg, value, _, selector) => {
+//     const mode = state.getMode();
+
+//     // Nom de la propriété CSS modifiée
+//     const propName = propArg.property || propArg.prop;
+//     if (!propName || !selector || !selector.getFullName) return;
+
+//     // Sélecteur de base
+//     const baseSel = selector.getFullName();
+//     let scopedSel = baseSel;
+
+//     // Ajout d'un préfixe selon le mode
+//     if (mode === 'dark') scopedSel = `html[data-theme="dark"] ${baseSel}`;
+//     else if (mode === 'light') scopedSel = `html[data-theme="light"] ${baseSel}`;
+
+//     const cssc = editor.CssComposer || editor.Css;
+//     const rule = selector.getRule() || cssc.addRules(scopedSel);
+
+//     rule.setSelectors([{ name: scopedSel }]);
+//     rule.setStyle(propName, value);
+//   });
+// });
+
 
 // ////////////////////
 // Plugins
@@ -102,6 +179,7 @@ const plugins = [
   {name: '@silexlabs/grapesjs-notifications', value: notificationsPlugin},
   {name: '@silexlabs/grapesjs-keymaps-dialog', value: keymapsDialogPlugin},
   {name: './upload-progress', value: uploadProgress},
+  {name: 'grapesjs-theme-mode', value: gjsThemeMode },
 ]
 // Check that all plugins are loaded correctly
 plugins
@@ -129,6 +207,8 @@ export const cmdToggleNotifications = 'open-notifications'
 // ////////////////////
 const catBasic = 'Containers'
 const catComponents = 'Components'
+
+
 
 export function getEditorConfig(config: ClientConfig): EditorConfig {
   const { websiteId, storageId, rootUrl } = config
@@ -175,11 +255,14 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
       escapeName: (name) => `${name}`,
     },
 
-    plugins: plugins.map(p => p.value),
+    plugins: 
+      plugins.map(p => p.value),
+    //'gjs-theme-switcher',
 
     pluginsOpts: {
+      'grapesjs-theme-mode': {},
       [blocksBasicPlugin.toString()]: {
-        blocks: ['text', 'image', 'video', 'map'],
+        blocks: ['text', 'image', 'video'],
         category: catBasic,
         //flexGrid: true,
       },
@@ -398,6 +481,20 @@ export async function initEditor(config: EditorConfig) {
     }
     editor.DomComponents.addType('image', typeConfig)
     editor.DomComponents.addType('iframe', typeConfig)
+
+
+    // editor.on('load', () => {
+    //   const panel = document.querySelector('.gjs-sm-sectors'); // ou .gjs-pn-panel et cherche dans les enfants
+    //   if (panel) {
+    //     const modeSelect = document.createElement('select');
+    //     modeSelect.innerHTML = `
+    //       <option value="both">Both</option>
+    //       <option value="dark">Dark</option>
+    //       <option value="light">Light</option>
+    //     `;
+    //     panel.prepend(modeSelect); // ou appendChild selon le rendu que tu veux
+    //   }
+    // })
 
     // Adjustments to do when the editor is ready
     editor.on('load', () => {
