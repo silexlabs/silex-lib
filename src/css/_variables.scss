@@ -7,19 +7,6 @@ $quaternaryColor: #A291FF;;
 $darkerPrimaryColor: #292929;
 $lighterPrimaryColor: #575757;
 
-//light color
-$primaryColor-light:    #1a1a1a;   // Texte principal
-$secondaryColor-light:  #4d4d4d;   // Texte secondaire
-$tertiaryColor-light:   #007acc;   // Accent / liens
-$quaternaryColor-light: #e0e0e0;   // Fonds de panneau
-$backgroundColor-light: #ffffff;   // Fond général
-$panelBgLight:          #f7f7f7;   // Arrière-plan des barres
-$borderColor-light:     #cccccc;   // Bordures
-$hoverBgLight:          #f0f0f0;   // Survol
-$buttonBgLight:         #007acc;   // Boutons actifs
-$buttonTextLight:       #ffffff;   // Texte de bouton
-
-
 $topBarHeight: 40px;
 $projectBarWidth: 35px;
 $projectPanelWidth: 13%;
@@ -49,16 +36,3 @@ $fontFamily: 'Ubuntu', sans-serif;
   --viewsProjectPanelWidth: #{$viewsProjectPanelWidth};
 }
 
-//variables css for the light mode
-:root.light-mode {
-  --primaryColor:       #{$primaryColor-light};
-  --secondaryColor:     #{$secondaryColor-light};
-  --tertiaryColor:      #{$tertiaryColor-light};
-  --quaternaryColor:    #{$quaternaryColor-light};
-  --backgroundColor:    #{$backgroundColor-light};
-  --panelBg:            #{$panelBgLight};
-  --borderColor:        #{$borderColor-light};
-  --hoverBg:            #{$hoverBgLight};
-  --buttonBg:           #{$buttonBgLight};
-  --buttonText:         #{$buttonTextLight};
-}

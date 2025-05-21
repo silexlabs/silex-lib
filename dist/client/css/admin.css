@@ -320,19 +320,6 @@ template {
   --viewsProjectPanelWidth: 13%;
 }
 
-:root.light-mode {
-  --primaryColor: #1a1a1a;
-  --secondaryColor: #4d4d4d;
-  --tertiaryColor: #007acc;
-  --quaternaryColor: #e0e0e0;
-  --backgroundColor: #ffffff;
-  --panelBg: #f7f7f7;
-  --borderColor: #cccccc;
-  --hoverBg: #f0f0f0;
-  --buttonBg: #007acc;
-  --buttonText: #ffffff;
-}
-
 /* stylelint-disable */
 /* BASICS */
 .CodeMirror {
