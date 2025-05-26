@@ -255,9 +255,17 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
       escapeName: (name) => `${name}`,
     },
 
+    //To include leaflet in the project
+    canvas: {
+      scripts: [
+        '/node_modules/leaflet/dist/leaflet.js'
+      ],
+      styles: [
+        '/node_modules/leaflet/dist/leaflet.css'
+      ],
+    },
     plugins: 
       plugins.map(p => p.value),
-    //'gjs-theme-switcher',
 
     pluginsOpts: {
       'grapesjs-theme-mode': {},
@@ -441,8 +449,115 @@ export async function initEditor(config: EditorConfig) {
     try {
       /* @ts-ignore */
       editor = grapesjs.init(config)
-    } catch(e) {
-      console.error('Error initializing GrapesJs with plugins:', plugins, e)
+
+      // Remove default map block and component
+      editor.Blocks.remove('map')
+      editor.DomComponents.removeType('map')
+
+      // Add custom Leaflet map block
+      editor.Blocks.add('map', {
+        label: 'Map',
+        category: 'Composants',
+        content: {
+          type: 'map',
+          tagName: 'div',
+          classes: ['leaflet-map'],
+          attributes: { style: 'width: 100%; height: 400px;' },
+          traits: [
+            { type: 'text', name: 'lat', label: 'Latitude', value: '0' },
+            { type: 'text', name: 'lng', label: 'Longitude', value: '0' },
+            { type: 'number', name: 'zoom', label: 'Zoom', min: 1, max: 19, value: 2 },
+          ],
+        },
+        attributes: { class: 'fa fa-map' },
+        select: true,
+      })
+
+      // Define custom map component
+      editor.DomComponents.addType('map', {
+        isComponent: (el) => el.classList?.contains('leaflet-map') ? { type: 'map' } : null,
+        model: {
+          defaults: {
+            type: 'map',
+            tagName: 'div',
+            classes: ['leaflet-map'],
+            traits: [
+              { type: 'text', name: 'lat', label: 'Latitude', value: '0' },
+              { type: 'text', name: 'lng', label: 'Longitude', value: '0' },
+              { type: 'number', name: 'zoom', label: 'Zoom', min: 1, max: 19, value: 2 },
+            ],
+            attributes: { style: 'width: 100%; height: 400px; max-height: 400px; overflow: hiden;' },
+            mapInstance: null,
+          },
+        },
+        view: {
+          onRender({ el, model }) {
+            el.innerHTML = ''
+            el.style.display = 'block'
+            el.style.width = '100%'
+            el.style.height = '400px'
+            el.style.maxHeight = '400px'
+            el.style.overflow = 'hidden'
+
+            const initializeMap = () => {
+              const lat = parseFloat(model.get('lat')) || 0
+              const lng = parseFloat(model.get('lng')) || 0
+              const zoom = parseInt(model.get('zoom')) || 2
+
+              if (window.L) {
+                const map = window.L.map(el).setView([lat, lng], zoom)
+                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                  maxZoom: 19,
+                }).addTo(map)
+                model.set('mapInstance', map)
+                map.invalidateSize() // Initial size validation
+
+                // Observe container size changes for updating the map
+                const observer = new ResizeObserver(() => {
+                  map.invalidateSize()
+                })
+                observer.observe(el)
+
+                // Handle preview mode
+                editor.on('run:preview', () => {
+                  setTimeout(() => map.invalidateSize(), 100)
+                })
+              } else {
+                console.error('Leaflet not available.')
+              }
+            }
+
+            if (!window.L) {
+              const script = document.createElement('script')
+              script.src = '/node_modules/leaflet/dist/leaflet.js'
+              script.onload = initializeMap
+              script.onerror = () => console.error('Failed to load Leaflet script.')
+              el.ownerDocument.head.appendChild(script)
+            } else {
+              initializeMap()
+            }
+          },
+        },
+      })
+
+      // Update map when traits change
+      editor.on('component:trait:change', (component, trait) => {
+        if (component.get('type') === 'map' && ['lat', 'lng', 'zoom'].includes(trait.get('name'))) {
+          const map = component.get('mapInstance')
+          if (map && window.L) {
+            const lat = parseFloat(component.get('lat')) || 0
+            const lng = parseFloat(component.get('lng')) || 0
+            const zoom = parseInt(component.get('zoom')) || 2
+            map.panTo([lat, lng])
+            map.setZoom(zoom)
+          }
+        }
+      })
+
+      resolve(editor)
+    } catch (e) {
+      console.error('Error initializing GrapesJS:', e)
       reject(e)
     }
 
@@ -481,20 +596,6 @@ export async function initEditor(config: EditorConfig) {
     }
     editor.DomComponents.addType('image', typeConfig)
     editor.DomComponents.addType('iframe', typeConfig)
-
-
-    // editor.on('load', () => {
-    //   const panel = document.querySelector('.gjs-sm-sectors'); // ou .gjs-pn-panel et cherche dans les enfants
-    //   if (panel) {
-    //     const modeSelect = document.createElement('select');
-    //     modeSelect.innerHTML = `
-    //       <option value="both">Both</option>
-    //       <option value="dark">Dark</option>
-    //       <option value="light">Light</option>
-    //     `;
-    //     panel.prepend(modeSelect); // ou appendChild selon le rendu que tu veux
-    //   }
-    // })
 
     // Adjustments to do when the editor is ready
     editor.on('load', () => {
