@@ -28,80 +28,6 @@ import gjsThemeMode from  '../../plugins/grapesjs-theme-mode'
 
 const notificationContainer = document.createElement('div')
 
-// grapesjs.plugins.add('gjs-theme-switcher', (editor) => {
-//   // 1. Crée ton mini "état" (state)
-//   const state = {
-//     mode: 'both',
-//     setMode(newMode) {
-//       this.mode = newMode;
-//       console.log('Mode changé :', this.mode);
-//     },
-//     getMode() {
-//       return this.mode;
-//     },
-//   };
-
-//   (editor as any).themeModeState = state;
-
-//   // 2. Ajoute un <select> dans le panneau de style
-//   const injectSelect = () => {
-//     const asm = document.getElementById('asm-container');
-//     if (!asm || (asm as any)._themeModeInjected) return;
-//     (asm as any)._themeModeInjected = true;
-
-
-//     const select = document.createElement('select');
-//     select.className = 'gjs-sm-mode';
-//     select.style.margin = '0 4px';
-//     select.innerHTML = `
-//       <option value="both">Both</option>
-//       <option value="light">Light only</option>
-//       <option value="dark">Dark only</option>
-//     `;
-
-//     select.value = state.getMode();
-
-//     select.addEventListener('change', (e) => {
-//       const mode = (e.target as HTMLSelectElement).value;
-//       state.setMode(mode);
-
-//       // Change aussi le data-theme du document HTML
-//       const htmlEl = editor.Canvas.getFrameEl().contentDocument.documentElement;
-//       htmlEl.setAttribute('data-theme', mode === 'both' ? '' : mode);
-//     });
-
-//     asm.prepend(select);
-//   };
-
-//   // Injecte le select à l'ouverture
-//   editor.on('component:selected', injectSelect);
-//   editor.on('styleManager:open', injectSelect);
-
-//   // 3. Quand un style est modifié, scoper la règle au mode actuel
-//   editor.on('style:property:update', (propArg, value, _, selector) => {
-//     const mode = state.getMode();
-
-//     // Nom de la propriété CSS modifiée
-//     const propName = propArg.property || propArg.prop;
-//     if (!propName || !selector || !selector.getFullName) return;
-
-//     // Sélecteur de base
-//     const baseSel = selector.getFullName();
-//     let scopedSel = baseSel;
-
-//     // Ajout d'un préfixe selon le mode
-//     if (mode === 'dark') scopedSel = `html[data-theme="dark"] ${baseSel}`;
-//     else if (mode === 'light') scopedSel = `html[data-theme="light"] ${baseSel}`;
-
-//     const cssc = editor.CssComposer || editor.Css;
-//     const rule = selector.getRule() || cssc.addRules(scopedSel);
-
-//     rule.setSelectors([{ name: scopedSel }]);
-//     rule.setStyle(propName, value);
-//   });
-// });
-
-
 // ////////////////////
 // Plugins
 // ////////////////////
@@ -258,10 +184,10 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
     //To include leaflet in the project
     canvas: {
       scripts: [
-        '/node_modules/leaflet/dist/leaflet.js'
+        'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'         
       ],
       styles: [
-        '/node_modules/leaflet/dist/leaflet.css'
+        'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
       ],
     },
     plugins: 
@@ -486,8 +412,30 @@ export async function initEditor(config: EditorConfig) {
               { type: 'text', name: 'lng', label: 'Longitude', value: '0' },
               { type: 'number', name: 'zoom', label: 'Zoom', min: 1, max: 19, value: 2 },
             ],
-            attributes: { style: 'width: 100%; height: 400px; max-height: 400px; overflow: hiden;' },
+            attributes: { style: 'width: 100%; height: 400px; max-height: 400px; overflow: hidden;' },
             mapInstance: null,
+          },
+          init() {
+            this.on('change:lat', this.updateDataAttributes)
+            this.on('change:lng', this.updateDataAttributes)
+            this.on('change:zoom', this.updateDataAttributes)
+            this.updateDataAttributes()
+          },
+          updateDataAttributes() {
+            const attrs = { ...this.getAttributes() }
+            delete attrs.lat 
+            delete attrs.lng
+            delete attrs.zoom
+            this.setAttributes({
+              ...attrs,
+              'data-lat': this.get('lat') || '0',
+              'data-lng': this.get('lng') || '0',
+              'data-zoom': this.get('zoom') || '2',
+            })
+          },
+          toJSON() {
+            const { mapInstance, ...rest } = this.attributes
+            return rest
           },
         },
         view: {
@@ -511,9 +459,19 @@ export async function initEditor(config: EditorConfig) {
                   maxZoom: 19,
                 }).addTo(map)
                 model.set('mapInstance', map)
-                map.invalidateSize() // Initial size validation
+                map.invalidateSize()
 
-                // Observe container size changes for updating the map
+                // Sync traits with map interactions
+                map.on('moveend', () => {
+                  const center = map.getCenter()
+                  model.set('lat', center.lat.toString())
+                  model.set('lng', center.lng.toString())
+                })
+                map.on('zoomend', () => {
+                  model.set('zoom', map.getZoom().toString())
+                })
+
+                // Observe container size changes
                 const observer = new ResizeObserver(() => {
                   map.invalidateSize()
                 })
@@ -523,6 +481,27 @@ export async function initEditor(config: EditorConfig) {
                 editor.on('run:preview', () => {
                   setTimeout(() => map.invalidateSize(), 100)
                 })
+
+                // Add global initialization script for published site
+                const script = document.createElement('script')
+                script.textContent = `
+                  document.addEventListener('DOMContentLoaded', () => {
+                    document.querySelectorAll('.leaflet-map').forEach(div => {
+                      if (window.L && div.dataset.lat && div.dataset.lng && div.dataset.zoom) {
+                        const lat = parseFloat(div.dataset.lat) || 0;
+                        const lng = parseFloat(div.dataset.lng) || 0;
+                        const zoom = parseInt(div.dataset.zoom) || 2;
+                        const map = L.map(div).setView([lat, lng], zoom);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                          maxZoom: 19,
+                        }).addTo(map);
+                        map.invalidateSize();
+                      }
+                    });
+                  });
+                `
+                el.ownerDocument.body.appendChild(script) // Append to body
               } else {
                 console.error('Leaflet not available.')
               }
@@ -530,30 +509,21 @@ export async function initEditor(config: EditorConfig) {
 
             if (!window.L) {
               const script = document.createElement('script')
-              script.src = '/node_modules/leaflet/dist/leaflet.js'
+              script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
               script.onload = initializeMap
               script.onerror = () => console.error('Failed to load Leaflet script.')
+              el.ownerDocument.head.appendChild(script)
+
+              const link = document.createElement('link')
+              link.rel = 'stylesheet'
+              link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
               el.ownerDocument.head.appendChild(script)
             } else {
               initializeMap()
             }
           },
         },
-      })
-
-      // Update map when traits change
-      editor.on('component:trait:change', (component, trait) => {
-        if (component.get('type') === 'map' && ['lat', 'lng', 'zoom'].includes(trait.get('name'))) {
-          const map = component.get('mapInstance')
-          if (map && window.L) {
-            const lat = parseFloat(component.get('lat')) || 0
-            const lng = parseFloat(component.get('lng')) || 0
-            const zoom = parseInt(component.get('zoom')) || 2
-            map.panTo([lat, lng])
-            map.setZoom(zoom)
-          }
-        }
-      })
+      })  
 
       resolve(editor)
     } catch (e) {

@@ -370,6 +370,9 @@ export class PublicationManager {
       console.time(`getHtml ${page.getId()} ${page.get('name')}`)
       const htmlContent = this.editor.getHtml({ component: body })
       console.timeEnd(`getHtml ${page.getId()} ${page.get('name')}`)
+      
+      // Check if the page contains a map component
+      const hasMap = body.find('.leaflet-map').length > 0
       yield undefined // Yield control to avoid blocking the main thread
 
       // Transform the file paths
@@ -396,12 +399,21 @@ export class PublicationManager {
       const title = getSetting('title')
       const favicon = getSetting('favicon')
 
+      // Include Leaflet scripts and styles if the page contains a map
+      const leafletIncludes = hasMap
+        ? `
+          <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+          <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+          <script src="/leaflet-init.js"></script>
+        `
+        : ''
       // Return the HTML file
       yield {
         html: `<!DOCTYPE html>
 <html lang="${getSetting('lang')}">
 <head>
 <meta charset="UTF-8">
+${leafletIncludes}
 <link rel="stylesheet" href="${cssPermalink}" />
 ${clonedSiteSettings?.head || ''}
 ${pageSettings?.head || ''}
