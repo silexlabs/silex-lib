@@ -184,10 +184,10 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
     //To include leaflet in the project
     canvas: {
       scripts: [
-        'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'         
+        //'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'         
       ],
       styles: [
-        'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
+        //'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
       ],
     },
     plugins: 
@@ -380,19 +380,30 @@ export async function initEditor(config: EditorConfig) {
       editor.Blocks.remove('map')
       editor.DomComponents.removeType('map')
 
-      // Add custom Leaflet map block
+      // Add custom Leaflet map block using iframe
       editor.Blocks.add('map', {
         label: 'Map',
         category: 'Composants',
         content: {
           type: 'map',
-          tagName: 'div',
-          classes: ['leaflet-map'],
-          attributes: { style: 'width: 100%; height: 400px;' },
+          tagName: 'iframe',
+          attributes: {
+            style: 'width: 100%; height: 400px; border: none; display: block;',
+            frameborder: '0',
+            scrolling: 'no',
+            allowfullscreen: 'true',
+            'data-lat': '0',
+            'data-lng': '0',
+            'data-zoom': '2',
+            'data-height': '400',
+            'data-width': '100%',
+          },
           traits: [
             { type: 'text', name: 'lat', label: 'Latitude', value: '0' },
             { type: 'text', name: 'lng', label: 'Longitude', value: '0' },
             { type: 'number', name: 'zoom', label: 'Zoom', min: 1, max: 19, value: 2 },
+            { type: 'text', name: 'height', label: 'Height (px)', value: '400' },
+            { type: 'text', name: 'width', label: 'Width', value: '100%' },
           ],
         },
         attributes: { class: 'fa fa-map' },
@@ -401,129 +412,215 @@ export async function initEditor(config: EditorConfig) {
 
       // Define custom map component
       editor.DomComponents.addType('map', {
-        isComponent: (el) => el.classList?.contains('leaflet-map') ? { type: 'map' } : null,
         model: {
           defaults: {
             type: 'map',
-            tagName: 'div',
+            tagName: 'iframe',
             classes: ['leaflet-map'],
+            attributes: {
+              style: 'width: 100%; height: 400px; border: none;',
+              frameborder: '0',
+              scrolling: 'no',
+              'data-lat': '0',
+              'data-lng': '0',
+              'data-zoom': '2',
+              'data-height': '400',
+              'data-width': '100%',
+            },
             traits: [
               { type: 'text', name: 'lat', label: 'Latitude', value: '0' },
               { type: 'text', name: 'lng', label: 'Longitude', value: '0' },
               { type: 'number', name: 'zoom', label: 'Zoom', min: 1, max: 19, value: 2 },
+              { type: 'text', name: 'height', label: 'Height (px)', value: '400' },
+              { type: 'text', name: 'width', label: 'Width', value: '100%' },
             ],
-            attributes: { style: 'width: 100%; height: 400px; max-height: 400px; overflow: hidden;' },
-            mapInstance: null,
           },
           init() {
-            this.on('change:lat', this.updateDataAttributes)
-            this.on('change:lng', this.updateDataAttributes)
-            this.on('change:zoom', this.updateDataAttributes)
-            this.updateDataAttributes()
+            this.on('change:lat', this.updateIframe)
+            this.on('change:lng', this.updateIframe)
+            this.on('change:zoom', this.updateIframe)
+            this.on('change:height', this.updateIframe)
+            this.on('change:width', this.updateIframe)
+            this.updateIframe()
           },
-          updateDataAttributes() {
-            const attrs = { ...this.getAttributes() }
-            delete attrs.lat 
-            delete attrs.lng
-            delete attrs.zoom
-            this.setAttributes({
-              ...attrs,
-              'data-lat': this.get('lat') || '0',
-              'data-lng': this.get('lng') || '0',
-              'data-zoom': this.get('zoom') || '2',
-            })
+          updateIframe() {
+            const lat = this.get('lat') || '0'
+            const lng = this.get('lng') || '0'
+            const zoom = this.get('zoom') || '2'
+            const height = this.get('height') || '400'
+            const width = this.get('width') || '100%'
+
+            const attrs = {
+              ...this.getAttributes(),
+              'data-lat': lat,
+              'data-lng': lng,
+              'data-zoom': zoom,
+              'data-height': height,
+              'data-width': width,
+              style: `width: ${width}; height: ${height}px; border: none; display: block;`,
+              frameborder: '0',
+              scrolling: 'no',
+              allowfullscreen: 'true',
+              srcdoc: this.generateMapHtml(lat, lng, zoom, height, width),
+            }
+            this.setAttributes(attrs)
+          },
+          generateMapHtml(lat, lng, zoom, height, width) {
+            return `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+          <style>
+            html, body { height: 100%; margin: 0; }
+            #map { width: ${width}; height: ${height}px; }
+          </style>
+        </head>
+        <body>
+          <div id="map"></div>
+          <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+          <script>
+            var map = L.map('map').setView([${lat}, ${lng}], ${zoom});
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+              maxZoom: 19,
+            }).addTo(map);
+            map.invalidateSize();
+            setTimeout(() => map.invalidateSize(), 100);
+            map.on('moveend', () => {
+              const center = map.getCenter();
+              parent.postMessage({
+                type: 'updateMap',
+                lat: center.lat.toString(),
+                lng: center.lng.toString(),
+                zoom: map.getZoom().toString()
+              }, '*');
+            });
+            map.on('zoomend', () => {
+              parent.postMessage({
+                type: 'updateMap',
+                lat: map.getCenter().lat.toString(),
+                lng: map.getCenter().lng.toString(),
+                zoom: map.getZoom().toString()
+              }, '*');
+            });
+          </script>
+        </body>
+        </html>
+      `
           },
           toJSON() {
-            const { mapInstance, ...rest } = this.attributes
-            return rest
+            const { srcdoc, ...rest } = this.getAttributes()
+            return {
+              type: this.get('type'),
+              tagName: this.get('tagName'),
+              classes: this.get('classes'),
+              attributes: {
+                ...rest,
+                'data-lat': this.get('lat') || '0',
+                'data-lng': this.get('lng') || '0',
+                'data-zoom': this.get('zoom') || '2',
+                'data-height': this.get('height') || '400',
+                'data-width': this.get('width') || '100%',
+              },
+              traits: [
+                { type: 'text', name: 'lat', value: this.get('lat') || '0' },
+                { type: 'text', name: 'lng', value: this.get('lng') || '0' },
+                { type: 'number', name: 'zoom', value: parseInt(this.get('zoom')) || 2 },
+                { type: 'text', name: 'height', value: this.get('height') || '400' },
+                { type: 'text', name: 'width', value: this.get('width') || '100%' },
+              ],
+            }
           },
         },
         view: {
           onRender({ el, model }) {
-            el.innerHTML = ''
+            el.style.width = model.get('width') || '100%'
+            el.style.height = `${model.get('height') || '400'}px`
+            el.style.border = 'none'
             el.style.display = 'block'
-            el.style.width = '100%'
-            el.style.height = '400px'
-            el.style.maxHeight = '400px'
             el.style.overflow = 'hidden'
 
-            const initializeMap = () => {
-              const lat = parseFloat(model.get('lat')) || 0
-              const lng = parseFloat(model.get('lng')) || 0
-              const zoom = parseInt(model.get('zoom')) || 2
-
-              if (window.L) {
-                const map = window.L.map(el).setView([lat, lng], zoom)
-                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                  maxZoom: 19,
-                }).addTo(map)
-                model.set('mapInstance', map)
-                map.invalidateSize()
-
-                // Sync traits with map interactions
-                map.on('moveend', () => {
-                  const center = map.getCenter()
-                  model.set('lat', center.lat.toString())
-                  model.set('lng', center.lng.toString())
-                })
-                map.on('zoomend', () => {
-                  model.set('zoom', map.getZoom().toString())
-                })
-
-                // Observe container size changes
-                const observer = new ResizeObserver(() => {
-                  map.invalidateSize()
-                })
-                observer.observe(el)
-
-                // Handle preview mode
-                editor.on('run:preview', () => {
-                  setTimeout(() => map.invalidateSize(), 100)
-                })
-
-                // Add global initialization script for published site
-                const script = document.createElement('script')
-                script.textContent = `
-                  document.addEventListener('DOMContentLoaded', () => {
-                    document.querySelectorAll('.leaflet-map').forEach(div => {
-                      if (window.L && div.dataset.lat && div.dataset.lng && div.dataset.zoom) {
-                        const lat = parseFloat(div.dataset.lat) || 0;
-                        const lng = parseFloat(div.dataset.lng) || 0;
-                        const zoom = parseInt(div.dataset.zoom) || 2;
-                        const map = L.map(div).setView([lat, lng], zoom);
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                          attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                          maxZoom: 19,
-                        }).addTo(map);
-                        map.invalidateSize();
-                      }
-                    });
-                  });
-                `
-                el.ownerDocument.body.appendChild(script) // Append to body
-              } else {
-                console.error('Leaflet not available.')
+            const handleMessage = (event) => {
+              if (event.data.type === 'updateMap') {
+                model.set({
+                  lat: event.data.lat,
+                  lng: event.data.lng,
+                  zoom: event.data.zoom,
+                }, { silent: false })
+                model.trigger('change:lat')
+                model.trigger('change:lng')
+                model.trigger('change:zoom')
               }
             }
-
-            if (!window.L) {
-              const script = document.createElement('script')
-              script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-              script.onload = initializeMap
-              script.onerror = () => console.error('Failed to load Leaflet script.')
-              el.ownerDocument.head.appendChild(script)
-
-              const link = document.createElement('link')
-              link.rel = 'stylesheet'
-              link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-              el.ownerDocument.head.appendChild(script)
-            } else {
-              initializeMap()
-            }
+            window.addEventListener('message', handleMessage)
+            this.listenTo(model, 'remove', () => {
+              window.removeEventListener('message', handleMessage)
+            })
+            this.listenTo(model, 'change:height', () => {
+              el.style.height = `${model.get('height')}px`
+            })
+            this.listenTo(model, 'change:width', () => {
+              el.style.width = model.get('width')
+            })
           },
         },
-      })  
+      })
+
+      // Update map on trait changes
+      editor.on('component:trait:change', (component, trait) => {
+        if (component.get('type') === 'map' && ['lat', 'lng', 'zoom', 'height', 'width'].includes(trait.get('name'))) {
+          component.getView().model.updateIframe()
+        }
+      })
+
+      // Add global initialization script for published site
+      editor.on('load', () => {
+        const script = document.createElement('script')
+        script.textContent = `
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('iframe.leaflet-map').forEach(iframe => {
+        const lat = parseFloat(iframe.dataset.lat) || 0;
+        const lng = parseFloat(iframe.dataset.lng) || 0;
+        const zoom = parseInt(iframe.dataset.zoom) || 2;
+        const height = iframe.dataset.height || '400';
+        const width = iframe.dataset.width || '100%';
+        iframe.style.width = width;
+        iframe.style.height = height + 'px';
+        iframe.srcdoc = \`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+            <style>
+              html, body { height: 100%; margin: 0; }
+              #map { width: \${width}; height: \${height}px; }
+            </style>
+          </head>
+          <body>
+            <div id="map"></div>
+            <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+            <script>
+              var map = L.map('map').setView([\${lat}, \${lng}], \${zoom});
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                maxZoom: 19,
+              }).addTo(map);
+              map.invalidateSize();
+              setTimeout(() => map.invalidateSize(), 100);
+            </script>
+          </body>
+          </html>
+        \`;
+      });
+    });
+  `
+        document.body.appendChild(script)
+      })
 
       resolve(editor)
     } catch (e) {
