@@ -362,6 +362,252 @@ export async function initEditor(config: EditorConfig) {
     try {
       /* @ts-ignore */
       editor = grapesjs.init(config)
+
+      // Remove default map block and component
+      editor.Blocks.remove('map')
+      editor.DomComponents.removeType('map')
+
+      // Add custom Leaflet map block using iframe
+      editor.Blocks.add('map', {
+        label: 'Map',
+        category: 'Composants',
+        content: {
+          type: 'map',
+          tagName: 'iframe',
+          attributes: {
+            style: 'width: 100%; height: 400px; border: none; display: block;',
+            frameborder: '0',
+            scrolling: 'no',
+            allowfullscreen: 'true',
+            'data-lat': '0',
+            'data-lng': '0',
+            'data-zoom': '2',
+            'data-height': '400',
+            'data-width': '100%',
+          },
+          traits: [
+            { type: 'text', name: 'lat', label: 'Latitude', value: '0' },
+            { type: 'text', name: 'lng', label: 'Longitude', value: '0' },
+            { type: 'number', name: 'zoom', label: 'Zoom', min: 1, max: 19, value: 2 },
+            { type: 'text', name: 'height', label: 'Height (px)', value: '400' },
+            { type: 'text', name: 'width', label: 'Width', value: '100%' },
+          ],
+        },
+        attributes: { class: 'fa fa-map' },
+        select: true,
+      })
+
+      // Define custom map component
+      editor.DomComponents.addType('map', {
+        model: {
+          defaults: {
+            type: 'map',
+            tagName: 'iframe',
+            classes: ['leaflet-map'],
+            attributes: {
+              style: 'width: 100%; height: 400px; border: none;',
+              frameborder: '0',
+              scrolling: 'no',
+              'data-lat': '0',
+              'data-lng': '0',
+              'data-zoom': '2',
+              'data-height': '400',
+              'data-width': '100%',
+            },
+            traits: [
+              { type: 'text', name: 'lat', label: 'Latitude', value: '0' },
+              { type: 'text', name: 'lng', label: 'Longitude', value: '0' },
+              { type: 'number', name: 'zoom', label: 'Zoom', min: 1, max: 19, value: 2 },
+              { type: 'text', name: 'height', label: 'Height (px)', value: '400' },
+              { type: 'text', name: 'width', label: 'Width', value: '100%' },
+            ],
+          },
+          init() {
+            this.on('change:lat', this.updateIframe)
+            this.on('change:lng', this.updateIframe)
+            this.on('change:zoom', this.updateIframe)
+            this.on('change:height', this.updateIframe)
+            this.on('change:width', this.updateIframe)
+            this.updateIframe()
+          },
+          updateIframe() {
+            const lat = this.get('lat') || '0'
+            const lng = this.get('lng') || '0'
+            const zoom = this.get('zoom') || '2'
+            const height = this.get('height') || '400'
+            const width = this.get('width') || '100%'
+
+            const attrs = {
+              ...this.getAttributes(),
+              'data-lat': lat,
+              'data-lng': lng,
+              'data-zoom': zoom,
+              'data-height': height,
+              'data-width': width,
+              style: `width: ${width}; height: ${height}px; border: none; display: block;`,
+              frameborder: '0',
+              scrolling: 'no',
+              allowfullscreen: 'true',
+              srcdoc: this.generateMapHtml(lat, lng, zoom, height, width),
+            }
+            this.setAttributes(attrs)
+          },
+          generateMapHtml(lat, lng, zoom, height, width) {
+            return `
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                <style>
+                  html, body, #map { width: ${width}; height: ${height}px; margin: 0; padding: 0; }
+                </style>
+              </head>
+              <body>
+                <div id="map"></div>
+                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                <script>
+                  var map = L.map('map').setView([${lat}, ${lng}], ${zoom});
+                  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                    maxZoom: 19,
+                  }).addTo(map);
+                  map.invalidateSize();
+                  setTimeout(() => map.invalidateSize(), 500);
+                  map.on('moveend', () => {
+                    const center = map.getCenter();
+                    parent.postMessage({
+                      type: 'updateMap',
+                      lat: center.lat.toString(),
+                      lng: center.lng.toString(),
+                      zoom: map.getZoom().toString()
+                    }, '*');
+                  });
+                  map.on('zoomend', () => {
+                    parent.postMessage({
+                      type: 'updateMap',
+                      lat: map.getCenter().lat.toString(),
+                      lng: map.getCenter().lng.toString(),
+                      zoom: map.getZoom().toString()
+                    }, '*');
+                  });
+                  new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('map'));
+                </script>
+              </body>
+              </html>
+            `
+          },
+          toJSON() {
+            const { srcdoc, ...rest } = this.getAttributes()
+            return {
+              type: this.get('type'),
+              tagName: this.get('tagName'),
+              classes: this.get('classes'),
+              attributes: {
+                ...rest,
+                'data-lat': this.get('lat') || '0',
+                'data-lng': this.get('lng') || '0',
+                'data-zoom': this.get('zoom') || '2',
+                'data-height': this.get('height') || '400',
+                'data-width': this.get('width') || '100%',
+              },
+              traits: [
+                { type: 'text', name: 'lat', value: this.get('lat') || '0' },
+                { type: 'text', name: 'lng', value: this.get('lng') || '0' },
+                { type: 'number', name: 'zoom', value: parseInt(this.get('zoom')) || 2 },
+                { type: 'text', name: 'height', value: this.get('height') || '400' },
+                { type: 'text', name: 'width', value: this.get('width') || '100%' },
+              ],
+            }
+          },
+        },
+        view: {
+          onRender({ el, model }) {
+            el.style.width = model.get('width') || '100%'
+            el.style.height = `${model.get('height') || '400'}px`
+            el.style.border = 'none'
+            el.style.display = 'block'
+            el.style.overflow = 'hidden'
+
+            const handleMessage = (event) => {
+              if (event.data.type === 'updateMap') {
+                model.set({
+                  lat: event.data.lat,
+                  lng: event.data.lng,
+                  zoom: event.data.zoom,
+                }, { silent: false })
+                model.trigger('change:lat')
+                model.trigger('change:lng')
+                model.trigger('change:zoom')
+              }
+            }
+            window.addEventListener('message', handleMessage)
+            this.listenTo(model, 'remove', () => {
+              window.removeEventListener('message', handleMessage)
+            })
+            this.listenTo(model, 'change:height', () => {
+              el.style.height = `${model.get('height')}px`
+            })
+            this.listenTo(model, 'change:width', () => {
+              el.style.width = model.get('width')
+            })
+          },
+        },
+      })
+
+      // Update map on trait changes
+      editor.on('component:trait:change', (component, trait) => {
+        if (component.get('type') === 'map' && ['lat', 'lng', 'zoom', 'height', 'width'].includes(trait.get('name'))) {
+          component.getView().model.updateIframe()
+        }
+      })
+
+      // Add global initialization script for published site
+      editor.on('load', () => {
+        const script = document.createElement('script')
+        script.textContent = `
+          document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('iframe.leaflet-map').forEach(iframe => {
+              const lat = parseFloat(iframe.dataset.lat) || 0;
+              const lng = parseFloat(iframe.dataset.lng) || 0;
+              const zoom = parseInt(iframe.dataset.zoom) || 2;
+              const height = iframe.dataset.height || '400';
+              const width = iframe.dataset.width || '100%';
+              iframe.style.width = width;
+              iframe.style.height = height + 'px';
+              iframe.srcdoc = \`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+                  <style>
+                    html, body, #map { width: \${width}; height: \${height}px; margin: 0; padding: 0; }
+                  </style>
+                </head>
+                <body>
+                  <div id="map"></div>
+                  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+                  <script>
+                    var map = L.map('map').setView([\${lat}, \${lng}], \${zoom});
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                      maxZoom: 19,
+                    }).addTo(map);
+                    map.invalidateSize();
+                    setTimeout(() => map.invalidateSize(), 500);
+                    new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('map'));
+                  </script>
+                </body>
+                </html>
+              \`;
+            });
+          });
+        `
+        document.body.appendChild(script)
+      })
     } catch(e) {
       console.error('Error initializing GrapesJs with plugins:', plugins, e)
       reject(e)
