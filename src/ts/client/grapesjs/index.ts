@@ -396,7 +396,7 @@ export async function initEditor(config: EditorConfig) {
             {
               type: 'text',
               name: 'address',
-              label: 'Adresse',
+              label: 'Address',
               changeProp: true,
               value: 'Musée du Louvre, Paris',
             },
