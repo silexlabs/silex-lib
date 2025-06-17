@@ -367,247 +367,137 @@ export async function initEditor(config: EditorConfig) {
       editor.Blocks.remove('map')
       editor.DomComponents.removeType('map')
 
-      // Add custom Leaflet map block using iframe
-      editor.Blocks.add('map', {
+      // Adding of a block for the map
+      const blockManager = editor.BlockManager
+      blockManager.add('map', {
         label: 'Map',
         category: 'Composants',
+        media: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M20.5,3L20.34,3.03L15,5.1L9,3L3.36,4.9C3.15,4.97 3,5.15 3,5.38V20.5A0.5,0.5 0 0,0 3.5,21L3.66,20.97L9,18.9L15,21L20.64,19.1C20.85,19.03 21,18.85 21,18.62V3.5A0.5,0.5 0 0,0 20.5,3M10,5.47L14,6.87V18.53L10,17.13V5.47M5,6.46L8,5.45V17.15L5,18.31V6.46M19,17.54L16,18.55V6.86L19,5.7V17.54Z" /></svg>',
         content: {
           type: 'map',
           tagName: 'iframe',
           attributes: {
-            style: 'width: 100%; height: 400px; border: none; display: block;',
             frameborder: '0',
             scrolling: 'no',
-            allowfullscreen: 'true',
-            'data-lat': '0',
-            'data-lng': '0',
-            'data-zoom': '2',
-            'data-height': '400',
-            'data-width': '100%',
+            title: 'Map',
+            'data-lat': '44.36451374951471',
+            'data-lng': '4.155364036560059',
+            'data-zoom': '12',
+            'data-address': 'Musée du Louvre, Paris',
+          }, 
+          style: {
+            width: '100%',
+            height: '350px',
           },
           traits: [
-            { type: 'text', name: 'lat', label: 'Latitude', value: '0' },
-            { type: 'text', name: 'lng', label: 'Longitude', value: '0' },
-            { type: 'number', name: 'zoom', label: 'Zoom', min: 1, max: 19, value: 2 },
-            { type: 'text', name: 'height', label: 'Height (px)', value: '400' },
-            { type: 'text', name: 'width', label: 'Width', value: '100%' },
+            {
+              type: 'text',
+              name: 'address',
+              label: 'Adresse',
+              changeProp: true,
+              value: 'Musée du Louvre, Paris',
+            },
+            {
+              type: 'number',
+              name: 'zoom',
+              label: 'Zoom',
+              changeProp: true,
+              min: 3,
+              max: 19,
+              value: 12,
+            },
           ],
         },
-        attributes: { class: 'fa fa-map' },
         select: true,
       })
 
-      // Define custom map component
+      // Define the mao component
       editor.DomComponents.addType('map', {
         model: {
           defaults: {
             type: 'map',
             tagName: 'iframe',
-            classes: ['leaflet-map'],
             attributes: {
-              style: 'width: 100%; height: 400px; border: none;',
               frameborder: '0',
               scrolling: 'no',
-              'data-lat': '0',
-              'data-lng': '0',
-              'data-zoom': '2',
-              'data-height': '400',
-              'data-width': '100%',
+              title: 'Map',
+              'data-lat': '44.36451374951471',
+              'data-lng': '4.155364036560059',
+              'data-zoom': '12',
+              'data-address': 'Musée du Louvre, Paris',
             },
-            traits: [
-              { type: 'text', name: 'lat', label: 'Latitude', value: '0' },
-              { type: 'text', name: 'lng', label: 'Longitude', value: '0' },
-              { type: 'number', name: 'zoom', label: 'Zoom', min: 1, max: 19, value: 2 },
-              { type: 'text', name: 'height', label: 'Height (px)', value: '400' },
-              { type: 'text', name: 'width', label: 'Width', value: '100%' },
-            ],
+            style: {
+              width: '100%',
+              height: '350px',
+            },
+            address: 'Musée du Louvre, Paris',
+            lat: '44.36451374951471',
+            lng: '4.155364036560059',
+            zoom: '12',
           },
           init() {
-            this.on('change:lat', this.updateIframe)
-            this.on('change:lng', this.updateIframe)
-            this.on('change:zoom', this.updateIframe)
-            this.on('change:height', this.updateIframe)
-            this.on('change:width', this.updateIframe)
+            this.on('change:address change:zoom', this.updateIframe)
             this.updateIframe()
           },
-          updateIframe() {
-            const lat = this.get('lat') || '0'
-            const lng = this.get('lng') || '0'
-            const zoom = this.get('zoom') || '2'
-            const height = this.get('height') || '400'
-            const width = this.get('width') || '100%'
+          async updateIframe() {
+            let lat = this.get('lat') || '44.36451374951471'
+            let lng = this.get('lng') || '4.155364036560059'
+            const zoom = this.get('zoom') || '12'
+            const address = this.get('address') || 'Musée du Louvre, Paris'
 
-            const attrs = {
-              ...this.getAttributes(),
+            // Using API nominatim to translate the address to a latitude and longitude
+            try {
+              const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+                {
+                  headers: {
+                    'User-Agent': 'Silex labs', 
+                  },
+                }
+              )
+              const data = await response.json()
+              if (data && data.length > 0) {
+                lat = data[0].lat
+                lng = data[0].lon
+                this.set({ lat, lng }) // Update the properties of the modele
+              } else {
+                console.warn('Localisation not found')
+              }
+            } catch (error) {
+              console.error('Erreur de géocodage:', error)
+            }
+
+            // Calculate a delta based on the zoom
+            const zoomFactor = Math.max(3, parseInt(zoom))
+            const delta = 180 / Math.pow(2, zoomFactor * 0.8)
+
+            // Calculation of the bbox
+            const minLng = Math.max(-180, parseFloat(lng) - delta)
+            const minLat = Math.max(-90, parseFloat(lat) - delta)
+            const maxLng = Math.min(180, parseFloat(lng) + delta)
+            const maxLat = Math.min(90, parseFloat(lat) + delta)
+            const bbox = `${minLng}%2C${minLat}%2C${maxLng}%2C${maxLat}`
+
+            // Update the properties of the iframe
+            this.setAttributes({
+              frameborder: '0',
+              scrolling: 'no',
+              title: 'Carte OpenStreetMap',
+              src: `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat}%2C${lng}&zoom=${zoomFactor}&t=${Date.now()}`,
               'data-lat': lat,
               'data-lng': lng,
               'data-zoom': zoom,
-              'data-height': height,
-              'data-width': width,
-              style: `width: ${width}; height: ${height}px; border: none; display: block;`,
-              frameborder: '0',
-              scrolling: 'no',
-              allowfullscreen: 'true',
-              srcdoc: this.generateMapHtml(lat, lng, zoom, height, width),
-            }
-            this.setAttributes(attrs)
-          },
-          generateMapHtml(lat, lng, zoom, height, width) {
-            return `
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-                <style>
-                  html, body, #map { width: ${width}; height: ${height}px; margin: 0; padding: 0; }
-                </style>
-              </head>
-              <body>
-                <div id="map"></div>
-                <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-                <script>
-                  var map = L.map('map').setView([${lat}, ${lng}], ${zoom});
-                  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                    maxZoom: 19,
-                  }).addTo(map);
-                  map.invalidateSize();
-                  setTimeout(() => map.invalidateSize(), 500);
-                  map.on('moveend', () => {
-                    const center = map.getCenter();
-                    parent.postMessage({
-                      type: 'updateMap',
-                      lat: center.lat.toString(),
-                      lng: center.lng.toString(),
-                      zoom: map.getZoom().toString()
-                    }, '*');
-                  });
-                  map.on('zoomend', () => {
-                    parent.postMessage({
-                      type: 'updateMap',
-                      lat: map.getCenter().lat.toString(),
-                      lng: map.getCenter().lng.toString(),
-                      zoom: map.getZoom().toString()
-                    }, '*');
-                  });
-                  new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('map'));
-                </script>
-              </body>
-              </html>
-            `
-          },
-          toJSON() {
-            const { srcdoc, ...rest } = this.getAttributes()
-            return {
-              type: this.get('type'),
-              tagName: this.get('tagName'),
-              classes: this.get('classes'),
-              attributes: {
-                ...rest,
-                'data-lat': this.get('lat') || '0',
-                'data-lng': this.get('lng') || '0',
-                'data-zoom': this.get('zoom') || '2',
-                'data-height': this.get('height') || '400',
-                'data-width': this.get('width') || '100%',
-              },
-              traits: [
-                { type: 'text', name: 'lat', value: this.get('lat') || '0' },
-                { type: 'text', name: 'lng', value: this.get('lng') || '0' },
-                { type: 'number', name: 'zoom', value: parseInt(this.get('zoom')) || 2 },
-                { type: 'text', name: 'height', value: this.get('height') || '400' },
-                { type: 'text', name: 'width', value: this.get('width') || '100%' },
-              ],
-            }
+              'data-address': address,
+            })
           },
         },
         view: {
-          onRender({ el, model }) {
-            el.style.width = model.get('width') || '100%'
-            el.style.height = `${model.get('height') || '400'}px`
+          onRender({ el }) {
             el.style.border = 'none'
-            el.style.display = 'block'
-            el.style.overflow = 'hidden'
-
-            const handleMessage = (event) => {
-              if (event.data.type === 'updateMap') {
-                model.set({
-                  lat: event.data.lat,
-                  lng: event.data.lng,
-                  zoom: event.data.zoom,
-                }, { silent: false })
-                model.trigger('change:lat')
-                model.trigger('change:lng')
-                model.trigger('change:zoom')
-              }
-            }
-            window.addEventListener('message', handleMessage)
-            this.listenTo(model, 'remove', () => {
-              window.removeEventListener('message', handleMessage)
-            })
-            this.listenTo(model, 'change:height', () => {
-              el.style.height = `${model.get('height')}px`
-            })
-            this.listenTo(model, 'change:width', () => {
-              el.style.width = model.get('width')
-            })
           },
         },
       })
-
-      // Update map on trait changes
-      editor.on('component:trait:change', (component, trait) => {
-        if (component.get('type') === 'map' && ['lat', 'lng', 'zoom', 'height', 'width'].includes(trait.get('name'))) {
-          component.getView().model.updateIframe()
-        }
-      })
-
-      // Add global initialization script for published site
-      editor.on('load', () => {
-        const script = document.createElement('script')
-        script.textContent = `
-          document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('iframe.leaflet-map').forEach(iframe => {
-              const lat = parseFloat(iframe.dataset.lat) || 0;
-              const lng = parseFloat(iframe.dataset.lng) || 0;
-              const zoom = parseInt(iframe.dataset.zoom) || 2;
-              const height = iframe.dataset.height || '400';
-              const width = iframe.dataset.width || '100%';
-              iframe.style.width = width;
-              iframe.style.height = height + 'px';
-              iframe.srcdoc = \`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                  <meta charset="UTF-8">
-                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-                  <style>
-                    html, body, #map { width: \${width}; height: \${height}px; margin: 0; padding: 0; }
-                  </style>
-                </head>
-                <body>
-                  <div id="map"></div>
-                  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-                  <script>
-                    var map = L.map('map').setView([\${lat}, \${lng}], \${zoom});
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                      maxZoom: 19,
-                    }).addTo(map);
-                    map.invalidateSize();
-                    setTimeout(() => map.invalidateSize(), 500);
-                    new ResizeObserver(() => map.invalidateSize()).observe(document.getElementById('map'));
-                  </script>
-                </body>
-                </html>
-              \`;
-            });
-          });
-        `
-        document.body.appendChild(script)
-      })
+      
     } catch(e) {
       console.error('Error initializing GrapesJs with plugins:', plugins, e)
       reject(e)
