@@ -386,6 +386,7 @@ export async function initEditor(config: EditorConfig) {
             'data-lng': '4.155364036560059',
             'data-zoom': '12',
             'data-address': 'Musée du Louvre, Paris',
+            'data-map-type': 'roadmap',
           }, 
           style: {
             width: '100%',
@@ -408,6 +409,17 @@ export async function initEditor(config: EditorConfig) {
               max: 19,
               value: 12,
             },
+            {
+              type: 'select',
+              name: 'mapType',
+              label: 'Type de carte',
+              changeProp: true,
+              value: 'roadmap',
+              options: [
+                { id: 'roadmap', value: 'roadmap', name: 'Roadmap' },
+                { id: 'minimal', value: 'minimal', name: 'Minimal' },
+              ],
+            },
           ],
         },
         select: true,
@@ -427,6 +439,7 @@ export async function initEditor(config: EditorConfig) {
               'data-lng': '4.155364036560059',
               'data-zoom': '12',
               'data-address': 'Musée du Louvre, Paris',
+              'data-map-type': 'roadmap',
             },
             style: {
               width: '100%',
@@ -436,9 +449,10 @@ export async function initEditor(config: EditorConfig) {
             lat: '44.36451374951471',
             lng: '4.155364036560059',
             zoom: '12',
+            mapType: 'roadmap',
           },
           init() {
-            this.on('change:address change:zoom', this.updateIframe)
+            this.on('change:address change:zoom change:mapType', this.updateIframe)
             this.updateIframe()
           },
           async updateIframe() {
@@ -446,6 +460,7 @@ export async function initEditor(config: EditorConfig) {
             let lng = this.get('lng') || '4.155364036560059'
             const zoom = this.get('zoom') || '12'
             const address = this.get('address') || 'Musée du Louvre, Paris'
+            const mapType = this.get('mapType') || 'roadmap'
 
             // Using API nominatim to translate the address to a latitude and longitude
             try {
@@ -480,16 +495,19 @@ export async function initEditor(config: EditorConfig) {
             const maxLat = Math.min(90, parseFloat(lat) + delta)
             const bbox = `${minLng}%2C${minLat}%2C${maxLng}%2C${maxLat}`
 
+            const layer = mapType === 'minimal' ? 'hot' : 'mapnik'
+
             // Update the properties of the iframe
             this.setAttributes({
               frameborder: '0',
               scrolling: 'no',
               title: 'Carte OpenStreetMap',
-              src: `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${lat}%2C${lng}&zoom=${zoomFactor}&t=${Date.now()}`,
+              src: `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=${layer}&marker=${lat}%2C${lng}&zoom=${zoomFactor}&t=${Date.now()}`,
               'data-lat': lat,
               'data-lng': lng,
               'data-zoom': zoom,
               'data-address': address,
+              'data-map-type': mapType,
             })
           },
         },
