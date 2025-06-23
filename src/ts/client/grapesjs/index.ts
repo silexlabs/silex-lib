@@ -359,7 +359,6 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
 // Keep a ref to the editor singleton
 let editor: Editor
 export async function initEditor(config: EditorConfig) {
-  if(editor) throw new Error('Grapesjs editor already created')
   return new Promise<Editor>((resolve, reject) => {
     try {
       /* @ts-ignore */
@@ -467,7 +466,7 @@ export async function initEditor(config: EditorConfig) {
                 console.warn('Localisation not found')
               }
             } catch (error) {
-              console.error('Erreur de géocodage:', error)
+              console.error('Error in the geocoding', error)
             }
 
             // Calculate a delta based on the zoom
@@ -506,6 +505,8 @@ export async function initEditor(config: EditorConfig) {
       console.error('Error initializing GrapesJs with plugins:', plugins, e)
       reject(e)
     }
+
+    addThemeSelector(editor);
 
     // customize the editor
     ['text']
@@ -575,12 +576,172 @@ export async function initEditor(config: EditorConfig) {
             : notificationButton?.classList.remove('project-bar__dirty')
         }
       )
-
       // GrapesJs editor is ready
       resolve(editor)
     })
   })
 }
+
+function addThemeSelector(editor) {
+  setTimeout(() => {
+    // Add a selector besides the deviceManager
+    const viewsBar = document.querySelector('.gjs-pn-panel.gjs-pn-devices-c')
+    if (viewsBar && !document.getElementById('gjs-theme-select')) {
+      const themeBtn = document.createElement('div')
+      themeBtn.className = 'gjs-theme-select'
+      themeBtn.style.display = 'inline-flex'
+      themeBtn.style.alignItems = 'center'
+      themeBtn.style.marginLeft = '10px'
+      themeBtn.innerHTML = `
+        <select id="gjs-theme-select" style="height:22px; background: #333; color: white;">
+          <option value="both">Both</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>`
+      viewsBar.appendChild(themeBtn)
+
+      let lastTheme = 'both'
+
+      // Listen to the changement of the selector and call the respective functions
+      themeBtn.querySelector('select').addEventListener('change', (e) => {
+        const value = (e.target as HTMLSelectElement).value
+        const selected = editor.getSelected()
+        if (selected) {
+          saveCurrentStylesToTheme(selected, lastTheme)
+          selected.set('themeMode', value)
+          updateStyleManagerForTheme(selected, value) 
+          updateComponentThemeStyles(selected) 
+          lastTheme = value
+          console.log(`Changement vers ${value}, styles sauvegardés pour ${lastTheme}:`, selected.get('themeStyles'))
+        }
+      })
+
+      // Listen to the component selection and update the selector
+      editor.on('component:selected', (model) => {
+        if (!model) return
+        const theme = model.get('themeMode') || 'both'
+        lastTheme = theme
+        const select = document.getElementById('gjs-theme-select')
+        if (select) (select as HTMLSelectElement).value = theme
+        updateStyleManagerForTheme(model, theme)
+        updateComponentThemeStyles(model)
+        console.log(`Composant sélectionné, thème: ${theme}`, model.get('themeStyles'))
+      })
+    }
+  }, 10)
+
+  // Save the property of the styleManager
+  editor.on('style:property:change', () => {
+    const selected = editor.getSelected()
+    if (!selected) return
+    const theme = selected.get('themeMode') || 'both'
+    saveCurrentStylesToTheme(selected, theme)
+    updateComponentThemeStyles(selected)
+    console.log(`Style modifié pour ${theme}:`, selected.get('themeStyles'))
+  })
+
+  // Get all properties from all StyleManager
+  function getAllStyleProps() {
+    let props = []
+    editor.StyleManager.getSectors().forEach((sector) => {
+      const sectorProps = sector.get('properties') || []
+      props = props.concat(sectorProps.models || sectorProps)
+    })
+    return props
+  }
+
+  // Save all current style values to the given theme
+  function saveCurrentStylesToTheme(model, theme) {
+    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
+    getAllStyleProps().forEach((prop) => {
+      const val = prop.getValue()
+      if (val !== undefined && val !== '') {
+        themeStyles[theme][prop.getId()] = val
+      }
+    })
+    model.set('themeStyles', themeStyles)
+    console.log(`Styles sauvegardés pour ${theme}:`, themeStyles[theme])
+  }
+
+  // Set styleManager values from themeStyles for the theme 
+  function updateStyleManagerForTheme(model, theme) {
+    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
+    getAllStyleProps().forEach((prop) => {
+      const val = themeStyles[theme]?.[prop.getId()]
+      if (val !== undefined) {
+        prop.setValue(val)
+      }
+    })
+    console.log(`StyleManager mis à jour pour ${theme}:`, themeStyles[theme])
+  }
+
+  // Add the CSS generation for each component with theme styles
+  function updateComponentThemeStyles(model) {
+    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
+    const id = model.getId()
+    let selector = ''
+    const classes = model.getClasses()
+    if (classes && classes.length) {
+      selector = '.' + classes.join('.')
+    } else {
+      selector = `[data-gjs-id="${id}"]`
+    }
+
+    console.log('Sélecteur utilisé:', selector)
+    console.log('themeStyles avant génération:', JSON.stringify(themeStyles, null, 2))
+
+    // Remove previous rules to avoid duplication
+    editor.Css.remove(`theme-${id}-both`)
+    editor.Css.remove(`theme-${id}-light`)
+    editor.Css.remove(`theme-${id}-light-class`)
+    editor.Css.remove(`theme-${id}-dark`)
+    editor.Css.remove(`theme-${id}-dark-class`)
+
+    // Styles for both
+    const bothStyles = themeStyles.both || {}
+    if (Object.keys(bothStyles).length) {
+      editor.Css.setRule(`theme-${id}-both`, selector, bothStyles)
+      console.log('Règle both générée:', { selector, styles: bothStyles })
+    }
+
+    // Styles for light mode
+    const lightStyles = themeStyles.light || {}
+    const hasLightStyles = Object.keys(lightStyles).length > 0 || Object.getOwnPropertyNames(lightStyles).length > 0
+    if (hasLightStyles) {
+      editor.Css.setRule(`theme-${id}-light`, selector, lightStyles, {
+        atRule: '@media (prefers-color-scheme: light)',
+      })
+      editor.Css.setRule(`theme-${id}-light-class`, `.theme-light ${selector}`, lightStyles)
+      console.log('Règles light générées:', {
+        media: `@media (prefers-color-scheme: light) { ${selector} { ... } }`,
+        class: `.theme-light ${selector} { ... }`,
+        styles: lightStyles,
+      })
+    } else {
+      console.log('Aucun style light détecté:', lightStyles)
+    }
+
+    // Styles for dark mode
+    const darkStyles = themeStyles.dark || {}
+    const hasDarkStyles = Object.keys(darkStyles).length > 0 || Object.getOwnPropertyNames(darkStyles).length > 0
+    if (hasDarkStyles) {
+      editor.Css.setRule(`theme-${id}-dark`, selector, darkStyles, {
+        atRule: '@media (prefers-color-scheme: dark)',
+      })
+      editor.Css.setRule(`theme-${id}-dark-class`, `.theme-dark ${selector}`, darkStyles)
+      console.log('Règles dark générées:', {
+        media: `@media (prefers-color-scheme: dark) { ${selector} { ... } }`,
+        class: `.theme-dark ${selector} { ... }`,
+        styles: darkStyles,
+      })
+    } else {
+      console.log('Aucun style dark détecté:', darkStyles)
+    }
+
+    console.log('CSS brut après génération:', editor.getCss())
+  }
+}
+
 
 export function getEditor() {
   return editor
