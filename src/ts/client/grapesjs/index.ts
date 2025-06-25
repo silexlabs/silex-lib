@@ -369,9 +369,6 @@ export async function initEditor(config: EditorConfig) {
       reject(e)
     }
     
-    addMapComponent(editor)
-    addThemeSelector(editor);
-
     // customize the editor
     ['text']
       .forEach(id => editor.Blocks.get(id)?.set('category', 'Basics'))
@@ -380,6 +377,9 @@ export async function initEditor(config: EditorConfig) {
     ;['map']
       .forEach(id => editor.Blocks.get(id)?.set('category', 'Components'))
     editor.Blocks.render([])
+
+    addMapComponent(editor)
+    addThemeSelector(editor)
 
     editor.Commands.add('gjs-open-import-webpage', openImport(editor, {
       modalImportLabel: '',
@@ -475,9 +475,8 @@ function addThemeSelector(editor) {
           saveCurrentStylesToTheme(selected, lastTheme)
           selected.set('themeMode', value)
           updateStyleManagerForTheme(selected, value) 
-          updateComponentThemeStyles(selected) 
+          //updateComponentThemeStyles(selected) 
           lastTheme = value
-          console.log(`Changement vers ${value}, styles sauvegardés pour ${lastTheme}:`, selected.get('themeStyles'))
         }
       })
 
@@ -489,8 +488,7 @@ function addThemeSelector(editor) {
         const select = document.getElementById('gjs-theme-select')
         if (select) (select as HTMLSelectElement).value = theme
         updateStyleManagerForTheme(model, theme)
-        updateComponentThemeStyles(model)
-        console.log(`Composant sélectionné, thème: ${theme}`, model.get('themeStyles'))
+        //updateComponentThemeStyles(model)
       })
     }
   }, 10)
@@ -501,8 +499,7 @@ function addThemeSelector(editor) {
     if (!selected) return
     const theme = selected.get('themeMode') || 'both'
     saveCurrentStylesToTheme(selected, theme)
-    updateComponentThemeStyles(selected)
-    console.log(`Style modifié pour ${theme}:`, selected.get('themeStyles'))
+    //updateComponentThemeStyles(selected)
   })
 
   // Get all properties from all StyleManager
@@ -525,7 +522,6 @@ function addThemeSelector(editor) {
       }
     })
     model.set('themeStyles', themeStyles)
-    console.log(`Styles sauvegardés pour ${theme}:`, themeStyles[theme])
   }
 
   // Set styleManager values from themeStyles for the theme 
@@ -537,74 +533,8 @@ function addThemeSelector(editor) {
         prop.setValue(val)
       }
     })
-    console.log(`StyleManager mis à jour pour ${theme}:`, themeStyles[theme])
   }
-
-  // Add the CSS generation for each component with theme styles
-  function updateComponentThemeStyles(model) {
-    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
-    const id = model.getId()
-    let selector = ''
-    const classes = model.getClasses()
-    if (classes && classes.length) {
-      selector = '.' + classes.join('.')
-    } else {
-      selector = `[data-gjs-id="${id}"]`
-    }
-
-    console.log('Sélecteur utilisé:', selector)
-    console.log('themeStyles avant génération:', JSON.stringify(themeStyles, null, 2))
-
-    // Remove previous rules to avoid duplication
-    editor.Css.remove(`theme-${id}-both`)
-    editor.Css.remove(`theme-${id}-light`)
-    editor.Css.remove(`theme-${id}-light-class`)
-    editor.Css.remove(`theme-${id}-dark`)
-    editor.Css.remove(`theme-${id}-dark-class`)
-
-    // Styles for both
-    const bothStyles = themeStyles.both || {}
-    if (Object.keys(bothStyles).length) {
-      editor.Css.setRule(`theme-${id}-both`, selector, bothStyles)
-      console.log('Règle both générée:', { selector, styles: bothStyles })
-    }
-
-    // Styles for light mode
-    const lightStyles = themeStyles.light || {}
-    const hasLightStyles = Object.keys(lightStyles).length > 0 || Object.getOwnPropertyNames(lightStyles).length > 0
-    if (hasLightStyles) {
-      editor.Css.setRule(`theme-${id}-light`, selector, lightStyles, {
-        atRule: '@media (prefers-color-scheme: light)',
-      })
-      editor.Css.setRule(`theme-${id}-light-class`, `.theme-light ${selector}`, lightStyles)
-      console.log('Règles light générées:', {
-        media: `@media (prefers-color-scheme: light) { ${selector} { ... } }`,
-        class: `.theme-light ${selector} { ... }`,
-        styles: lightStyles,
-      })
-    } else {
-      console.log('Aucun style light détecté:', lightStyles)
-    }
-
-    // Styles for dark mode
-    const darkStyles = themeStyles.dark || {}
-    const hasDarkStyles = Object.keys(darkStyles).length > 0 || Object.getOwnPropertyNames(darkStyles).length > 0
-    if (hasDarkStyles) {
-      editor.Css.setRule(`theme-${id}-dark`, selector, darkStyles, {
-        atRule: '@media (prefers-color-scheme: dark)',
-      })
-      editor.Css.setRule(`theme-${id}-dark-class`, `.theme-dark ${selector}`, darkStyles)
-      console.log('Règles dark générées:', {
-        media: `@media (prefers-color-scheme: dark) { ${selector} { ... } }`,
-        class: `.theme-dark ${selector} { ... }`,
-        styles: darkStyles,
-      })
-    } else {
-      console.log('Aucun style dark détecté:', darkStyles)
-    }
-
-    console.log('CSS brut après génération:', editor.getCss())
-  }
+  
 }
 
 
