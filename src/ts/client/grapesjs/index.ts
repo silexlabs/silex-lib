@@ -475,7 +475,7 @@ function addThemeSelector(editor) {
           saveCurrentStylesToTheme(selected, lastTheme)
           selected.set('themeMode', value)
           updateStyleManagerForTheme(selected, value) 
-          //updateComponentThemeStyles(selected) 
+          updateComponentThemeStyles(selected) 
           lastTheme = value
         }
       })
@@ -488,7 +488,7 @@ function addThemeSelector(editor) {
         const select = document.getElementById('gjs-theme-select')
         if (select) (select as HTMLSelectElement).value = theme
         updateStyleManagerForTheme(model, theme)
-        //updateComponentThemeStyles(model)
+        updateComponentThemeStyles(model)
       })
     }
   }, 10)
@@ -499,7 +499,7 @@ function addThemeSelector(editor) {
     if (!selected) return
     const theme = selected.get('themeMode') || 'both'
     saveCurrentStylesToTheme(selected, theme)
-    //updateComponentThemeStyles(selected)
+    updateComponentThemeStyles(selected)
   })
 
   // Get all properties from all StyleManager
@@ -534,7 +534,48 @@ function addThemeSelector(editor) {
       }
     })
   }
-  
+
+  // Add the CSS generation for each component with theme styles
+  function updateComponentThemeStyles(model) {
+    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
+    const id = model.getId()
+    const selector = `#${id}`
+
+    // Delete all previous rules to avoid duplication
+    editor.Css.getRules().forEach(rule => {
+      const ruleSelector = rule.getSelectors().toString()
+      if (ruleSelector.includes(id)) {
+        editor.Css.remove(rule)
+      }
+    })
+
+    // Styles for both
+    if (Object.keys(themeStyles.both).length) {
+      editor.Css.setRule(`theme-${id}-both`, selector, themeStyles.both)
+    }
+
+    // Styles for light
+    if (Object.keys(themeStyles.light).length) {
+      const lightCss = Object.entries(themeStyles.light)
+        .map(([prop, value]) => `${prop}: ${value};`)
+        .join(' ')
+      editor.Css.addRules(`
+        @media (prefers-color-scheme: light) { ${selector} { ${lightCss} } }
+        .theme-light ${selector} { ${lightCss} }
+      `)
+    }
+
+    // Styles for dark
+    if (Object.keys(themeStyles.dark).length) {
+      const darkCss = Object.entries(themeStyles.dark)
+        .map(([prop, value]) => `${prop}: ${value};`)
+        .join(' ')
+      editor.Css.addRules(`
+        @media (prefers-color-scheme: dark) { ${selector} { ${darkCss} } }
+        .theme-dark ${selector} { ${darkCss} }
+      `)
+    }
+  }
 }
 
 
