@@ -359,7 +359,6 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
 // Keep a ref to the editor singleton
 let editor: Editor
 export async function initEditor(config: EditorConfig) {
-  if(editor) throw new Error('Grapesjs editor already created')
   return new Promise<Editor>((resolve, reject) => {
     try {
       /* @ts-ignore */
@@ -368,7 +367,7 @@ export async function initEditor(config: EditorConfig) {
       console.error('Error initializing GrapesJs with plugins:', plugins, e)
       reject(e)
     }
-
+    
     // customize the editor
     ['text']
       .forEach(id => editor.Blocks.get(id)?.set('category', 'Basics'))
@@ -377,6 +376,8 @@ export async function initEditor(config: EditorConfig) {
     ;['map']
       .forEach(id => editor.Blocks.get(id)?.set('category', 'Components'))
     editor.Blocks.render([])
+
+    addThemeSelector(editor)
 
     editor.Commands.add('gjs-open-import-webpage', openImport(editor, {
       modalImportLabel: '',
@@ -437,12 +438,144 @@ export async function initEditor(config: EditorConfig) {
             : notificationButton?.classList.remove('project-bar__dirty')
         }
       )
-
       // GrapesJs editor is ready
       resolve(editor)
     })
   })
 }
+
+// Will be added later in a pluggin but for the test I put it here
+function addThemeSelector(editor) {
+  setTimeout(() => {
+    // Add a selector besides the deviceManager
+    const viewsBar = document.querySelector('.gjs-pn-panel.gjs-pn-devices-c')
+    if (viewsBar && !document.getElementById('gjs-theme-select')) {
+      const themeBtn = document.createElement('div')
+      themeBtn.className = 'gjs-theme-select'
+      themeBtn.style.display = 'inline-flex'
+      themeBtn.style.alignItems = 'center'
+      themeBtn.style.marginLeft = '10px'
+      themeBtn.innerHTML = `
+        <select id="gjs-theme-select" style="height:22px; background: #333; color: white;">
+          <option value="both">Both</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>`
+      viewsBar.appendChild(themeBtn)
+
+      let lastTheme = 'both'
+
+      // Listen to the changement of the selector and call the respective functions
+      themeBtn.querySelector('select').addEventListener('change', (e) => {
+        const value = (e.target as HTMLSelectElement).value
+        const selected = editor.getSelected()
+        if (selected) {
+          saveCurrentStylesToTheme(selected, lastTheme)
+          selected.set('themeMode', value)
+          updateStyleManagerForTheme(selected, value) 
+          updateComponentThemeStyles(selected) 
+          lastTheme = value
+        }
+      })
+
+      // Listen to the component selection and update the selector
+      editor.on('component:selected', (model) => {
+        if (!model) return
+        const theme = model.get('themeMode') || 'both'
+        lastTheme = theme
+        const select = document.getElementById('gjs-theme-select')
+        if (select) (select as HTMLSelectElement).value = theme
+        updateStyleManagerForTheme(model, theme)
+        updateComponentThemeStyles(model)
+      })
+    }
+  }, 10)
+
+  // Save the property of the styleManager
+  editor.on('style:property:change', () => {
+    const selected = editor.getSelected()
+    if (!selected) return
+    const theme = selected.get('themeMode') || 'both'
+    saveCurrentStylesToTheme(selected, theme)
+    updateComponentThemeStyles(selected)
+  })
+
+  // Get all properties from all StyleManager
+  function getAllStyleProps() {
+    let props = []
+    editor.StyleManager.getSectors().forEach((sector) => {
+      const sectorProps = sector.get('properties') || []
+      props = props.concat(sectorProps.models || sectorProps)
+    })
+    return props
+  }
+
+  // Save all current style values to the given theme
+  function saveCurrentStylesToTheme(model, theme) {
+    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
+    getAllStyleProps().forEach((prop) => {
+      const val = prop.getValue()
+      if (val !== undefined && val !== '') {
+        themeStyles[theme][prop.getId()] = val
+      }
+    })
+    model.set('themeStyles', themeStyles)
+  }
+
+  // Set styleManager values from themeStyles for the theme 
+  function updateStyleManagerForTheme(model, theme) {
+    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
+    getAllStyleProps().forEach((prop) => {
+      const val = themeStyles[theme]?.[prop.getId()]
+      if (val !== undefined) {
+        prop.setValue(val)
+      }
+    })
+  }
+
+  // Add the CSS generation for each component with theme styles
+  function updateComponentThemeStyles(model) {
+    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
+    const id = model.getId()
+    const selector = `#${id}`
+
+    // Delete all previous rules to avoid duplication
+    editor.Css.getRules().forEach(rule => {
+      const ruleSelector = rule.getSelectors().toString()
+      if (ruleSelector.includes(id)) {
+        editor.Css.remove(rule)
+      }
+    })
+
+    // Styles for both
+    if (Object.keys(themeStyles.both).length) {
+      editor.Css.setRule(`theme-${id}-both`, selector, themeStyles.both)
+    }
+
+    // Styles for light
+    if (Object.keys(themeStyles.light).length) {
+      const lightCss = Object.entries(themeStyles.light)
+        .map(([prop, value]) => `${prop}: ${value};`)
+        .join(' ')
+      editor.Css.addRules(`
+        @media (prefers-color-scheme: light) { ${selector} { ${lightCss} } }
+        .theme-light ${selector} { ${lightCss} }
+      `)
+    }
+
+    // Styles for dark
+    if (Object.keys(themeStyles.dark).length) {
+      const darkCss = Object.entries(themeStyles.dark)
+        .map(([prop, value]) => `${prop}: ${value};`)
+        .join(' ')
+      editor.Css.addRules(`
+        @media (prefers-color-scheme: dark) { ${selector} { ${darkCss} } }
+        .theme-dark ${selector} { ${darkCss} }
+      `)
+    }
+  }
+}
+
 
 export function getEditor() {
   return editor
