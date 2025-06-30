@@ -378,6 +378,7 @@ export async function initEditor(config: EditorConfig) {
     editor.Blocks.render([])
 
     addThemeSelector(editor)
+    getComponentClassNames(editor)
 
     editor.Commands.add('gjs-open-import-webpage', openImport(editor, {
       modalImportLabel: '',
@@ -446,10 +447,15 @@ export async function initEditor(config: EditorConfig) {
 
 // Will be added later in a pluggin but for the test I put it here
 function addThemeSelector(editor) {
+  let currentTheme = 'both' 
+  let themeSelect = null 
   setTimeout(() => {
-    // Add a selector besides the deviceManager
-    const viewsBar = document.querySelector('.gjs-pn-panel.gjs-pn-devices-c')
-    if (viewsBar && !document.getElementById('gjs-theme-select')) {
+    const panelManager = editor.Panels
+    // problem here, the pannel devices-c is found but has no 'el' property so it's the document.querySelector that is used
+    const container = panelManager.getPanel('devices-c')?.get('el') || 
+                    document.querySelector('.gjs-pn-panel.gjs-pn-devices-c')
+
+    if (container && !document.getElementById('gjs-theme-select')) {
       const themeBtn = document.createElement('div')
       themeBtn.className = 'gjs-theme-select'
       themeBtn.style.display = 'inline-flex'
@@ -461,42 +467,38 @@ function addThemeSelector(editor) {
           <option value="light">Light</option>
           <option value="dark">Dark</option>
         </select>`
-      viewsBar.appendChild(themeBtn)
+      container.appendChild(themeBtn)
 
-      let lastTheme = 'both'
+      themeSelect = themeBtn.querySelector('select')
 
-      // Listen to the changement of the selector and call the respective functions
-      themeBtn.querySelector('select').addEventListener('change', (e) => {
-        const value = (e.target as HTMLSelectElement).value
+      themeSelect.addEventListener('change', (e) => {
+        const value = e.target.value
         const selected = editor.getSelected()
         if (selected) {
-          saveCurrentStylesToTheme(selected, lastTheme)
-          selected.set('themeMode', value)
-          updateStyleManagerForTheme(selected, value) 
-          updateComponentThemeStyles(selected) 
-          lastTheme = value
+          saveCurrentStylesToTheme(selected, currentTheme)
+          currentTheme = value
+          updateStyleManagerForTheme(selected, currentTheme)
+          updateComponentThemeStyles(selected)
         }
       })
-
-      // Listen to the component selection and update the selector
-      editor.on('component:selected', (model) => {
-        if (!model) return
-        const theme = model.get('themeMode') || 'both'
-        lastTheme = theme
-        const select = document.getElementById('gjs-theme-select')
-        if (select) (select as HTMLSelectElement).value = theme
-        updateStyleManagerForTheme(model, theme)
-        updateComponentThemeStyles(model)
-      })
+    } else {
+      console.log('Failed to add theme selector: no valid container for theme-panel')
     }
-  }, 10)
+  })
 
-  // Save the property of the styleManager
+  // Listen to the selection of the component
+  editor.on('component:selected', (model) => {
+    if (!model) return
+    if (themeSelect) themeSelect.value = currentTheme 
+    updateStyleManagerForTheme(model, currentTheme)
+    updateComponentThemeStyles(model)
+  })
+
+  // Save the style when a property is changed
   editor.on('style:property:change', () => {
     const selected = editor.getSelected()
     if (!selected) return
-    const theme = selected.get('themeMode') || 'both'
-    saveCurrentStylesToTheme(selected, theme)
+    saveCurrentStylesToTheme(selected, currentTheme)
     updateComponentThemeStyles(selected)
   })
 
@@ -517,6 +519,8 @@ function addThemeSelector(editor) {
       const val = prop.getValue()
       if (val !== undefined && val !== '') {
         themeStyles[theme][prop.getId()] = val
+      } else {
+        delete themeStyles[theme][prop.getId()]
       }
     })
     model.set('themeStyles', themeStyles)
@@ -526,6 +530,7 @@ function addThemeSelector(editor) {
   function updateStyleManagerForTheme(model, theme) {
     const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
     getAllStyleProps().forEach((prop) => {
+      prop.setValue('')
       const val = themeStyles[theme]?.[prop.getId()]
       if (val !== undefined) {
         prop.setValue(val)
@@ -574,6 +579,22 @@ function addThemeSelector(editor) {
       `)
     }
   }
+}
+
+// Test for getting component class names but it doesn't work
+function getComponentClassNames(editor) {
+  editor.on('component:selected', (model) => {
+    if (!model) return
+    const id = model.getId()
+    const selectors = model.get('classes')
+    if (selectors && selectors.models) {
+      selectors.models.forEach((sel) => {
+        console.log('Sélecteur :', sel.toJSON())
+      })
+    } else {
+      console.log('Aucune classe trouvée pour l id :', id)
+    }
+  })
 }
 
 
