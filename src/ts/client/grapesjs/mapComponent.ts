@@ -129,10 +129,5 @@ export function addMapComponent(editor) {
         })
       },
     },
-    view: {
-      onRender({ el }) {
-        el.style.border = 'none'
-      },
-    },
   })
 }
