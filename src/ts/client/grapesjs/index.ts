@@ -51,6 +51,7 @@ import backgroundPlugin from 'grapesjs-style-bg'
 import resizePanelPlugin from './resize-panel'
 import notificationsPlugin, { NotificationEditor } from '@silexlabs/grapesjs-notifications'
 import keymapsDialogPlugin, { cmdKeymapsDialog } from '@silexlabs/grapesjs-keymaps-dialog'
+import { addThemeSelector } from './themeSelector'
 
 import { pagePanelPlugin, cmdTogglePages, cmdAddPage } from './page-panel'
 import { newPageDialog, cmdOpenNewPageDialog } from './new-page-dialog'
@@ -359,6 +360,7 @@ export function getEditorConfig(config: ClientConfig): EditorConfig {
 // Keep a ref to the editor singleton
 let editor: Editor
 export async function initEditor(config: EditorConfig) {
+  if(editor) throw new Error('Grapesjs editor already created')
   return new Promise<Editor>((resolve, reject) => {
     try {
       /* @ts-ignore */
@@ -378,7 +380,6 @@ export async function initEditor(config: EditorConfig) {
     editor.Blocks.render([])
 
     addThemeSelector(editor)
-    getComponentClassNames(editor)
 
     editor.Commands.add('gjs-open-import-webpage', openImport(editor, {
       modalImportLabel: '',
@@ -444,159 +445,6 @@ export async function initEditor(config: EditorConfig) {
     })
   })
 }
-
-// Will be added later in a pluggin but for the test I put it here
-function addThemeSelector(editor) {
-  let currentTheme = 'both' 
-  let themeSelect = null 
-  setTimeout(() => {
-    const panelManager = editor.Panels
-    // problem here, the pannel devices-c is found but has no 'el' property so it's the document.querySelector that is used
-    const container = panelManager.getPanel('devices-c')?.get('el') || 
-                    document.querySelector('.gjs-pn-panel.gjs-pn-devices-c')
-
-    if (container && !document.getElementById('gjs-theme-select')) {
-      const themeBtn = document.createElement('div')
-      themeBtn.className = 'gjs-theme-select'
-      themeBtn.style.display = 'inline-flex'
-      themeBtn.style.alignItems = 'center'
-      themeBtn.style.marginLeft = '10px'
-      themeBtn.innerHTML = `
-        <select id="gjs-theme-select" style="height:22px; background: #333; color: white;">
-          <option value="both">Both</option>
-          <option value="light">Light</option>
-          <option value="dark">Dark</option>
-        </select>`
-      container.appendChild(themeBtn)
-
-      themeSelect = themeBtn.querySelector('select')
-
-      themeSelect.addEventListener('change', (e) => {
-        const value = e.target.value
-        const selected = editor.getSelected()
-        if (selected) {
-          saveCurrentStylesToTheme(selected, currentTheme)
-          currentTheme = value
-          updateStyleManagerForTheme(selected, currentTheme)
-          updateComponentThemeStyles(selected)
-        }
-      })
-    } else {
-      console.log('Failed to add theme selector: no valid container for theme-panel')
-    }
-  })
-
-  // Listen to the selection of the component
-  editor.on('component:selected', (model) => {
-    if (!model) return
-    if (themeSelect) themeSelect.value = currentTheme 
-    updateStyleManagerForTheme(model, currentTheme)
-    updateComponentThemeStyles(model)
-  })
-
-  // Save the style when a property is changed
-  editor.on('style:property:change', () => {
-    const selected = editor.getSelected()
-    if (!selected) return
-    saveCurrentStylesToTheme(selected, currentTheme)
-    updateComponentThemeStyles(selected)
-  })
-
-  // Get all properties from all StyleManager
-  function getAllStyleProps() {
-    let props = []
-    editor.StyleManager.getSectors().forEach((sector) => {
-      const sectorProps = sector.get('properties') || []
-      props = props.concat(sectorProps.models || sectorProps)
-    })
-    return props
-  }
-
-  // Save all current style values to the given theme
-  function saveCurrentStylesToTheme(model, theme) {
-    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
-    getAllStyleProps().forEach((prop) => {
-      const val = prop.getValue()
-      if (val !== undefined && val !== '') {
-        themeStyles[theme][prop.getId()] = val
-      } else {
-        delete themeStyles[theme][prop.getId()]
-      }
-    })
-    model.set('themeStyles', themeStyles)
-  }
-
-  // Set styleManager values from themeStyles for the theme 
-  function updateStyleManagerForTheme(model, theme) {
-    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
-    getAllStyleProps().forEach((prop) => {
-      prop.setValue('')
-      const val = themeStyles[theme]?.[prop.getId()]
-      if (val !== undefined) {
-        prop.setValue(val)
-      }
-    })
-  }
-
-  // Add the CSS generation for each component with theme styles
-  function updateComponentThemeStyles(model) {
-    const themeStyles = model.get('themeStyles') || { both: {}, light: {}, dark: {} }
-    const id = model.getId()
-    const selector = `#${id}`
-
-    // Delete all previous rules to avoid duplication
-    editor.Css.getRules().forEach(rule => {
-      const ruleSelector = rule.getSelectors().toString()
-      if (ruleSelector.includes(id)) {
-        editor.Css.remove(rule)
-      }
-    })
-
-    // Styles for both
-    if (Object.keys(themeStyles.both).length) {
-      editor.Css.setRule(`theme-${id}-both`, selector, themeStyles.both)
-    }
-
-    // Styles for light
-    if (Object.keys(themeStyles.light).length) {
-      const lightCss = Object.entries(themeStyles.light)
-        .map(([prop, value]) => `${prop}: ${value};`)
-        .join(' ')
-      editor.Css.addRules(`
-        @media (prefers-color-scheme: light) { ${selector} { ${lightCss} } }
-        .theme-light ${selector} { ${lightCss} }
-      `)
-    }
-
-    // Styles for dark
-    if (Object.keys(themeStyles.dark).length) {
-      const darkCss = Object.entries(themeStyles.dark)
-        .map(([prop, value]) => `${prop}: ${value};`)
-        .join(' ')
-      editor.Css.addRules(`
-        @media (prefers-color-scheme: dark) { ${selector} { ${darkCss} } }
-        .theme-dark ${selector} { ${darkCss} }
-      `)
-    }
-  }
-}
-
-// Test for getting component class names but it doesn't work
-function getComponentClassNames(editor) {
-  editor.on('component:selected', (model) => {
-    if (!model) return
-    const id = model.getId()
-    const selectors = model.get('classes')
-    if (selectors && selectors.models) {
-      selectors.models.forEach((sel) => {
-        console.log('Sélecteur :', sel.toJSON())
-      })
-    } else {
-      console.log('Aucune classe trouvée pour l id :', id)
-    }
-  })
-}
-
 
 export function getEditor() {
   return editor
