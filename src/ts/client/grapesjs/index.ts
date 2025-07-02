@@ -51,6 +51,7 @@ import backgroundPlugin from 'grapesjs-style-bg'
 import resizePanelPlugin from './resize-panel'
 import notificationsPlugin, { NotificationEditor } from '@silexlabs/grapesjs-notifications'
 import keymapsDialogPlugin, { cmdKeymapsDialog } from '@silexlabs/grapesjs-keymaps-dialog'
+import { addThemeSelector } from './themeSelector'
 
 import { pagePanelPlugin, cmdTogglePages, cmdAddPage } from './page-panel'
 import { newPageDialog, cmdOpenNewPageDialog } from './new-page-dialog'
@@ -368,7 +369,7 @@ export async function initEditor(config: EditorConfig) {
       console.error('Error initializing GrapesJs with plugins:', plugins, e)
       reject(e)
     }
-
+    
     // customize the editor
     ['text']
       .forEach(id => editor.Blocks.get(id)?.set('category', 'Basics'))
@@ -377,6 +378,8 @@ export async function initEditor(config: EditorConfig) {
     ;['map']
       .forEach(id => editor.Blocks.get(id)?.set('category', 'Components'))
     editor.Blocks.render([])
+
+    addThemeSelector(editor)
 
     editor.Commands.add('gjs-open-import-webpage', openImport(editor, {
       modalImportLabel: '',
@@ -437,7 +440,6 @@ export async function initEditor(config: EditorConfig) {
             : notificationButton?.classList.remove('project-bar__dirty')
         }
       )
-
       // GrapesJs editor is ready
       resolve(editor)
     })
