@@ -68,6 +68,7 @@ import { API_PATH, API_WEBSITE_ASSETS_WRITE, API_WEBSITE_PATH, SILEX_VERSION } f
 import { ClientConfig } from '../config'
 import { titleCase } from '../utils'
 import uploadProgress from './upload-progress'
+import { addMapComponent } from './mapComponent'
 
 const plugins = [
   {name: './project-bar', value: projectBarPlugin}, // has to be before panels and dialogs
@@ -378,6 +379,8 @@ export async function initEditor(config: EditorConfig) {
     ;['map']
       .forEach(id => editor.Blocks.get(id)?.set('category', 'Components'))
     editor.Blocks.render([])
+
+    addMapComponent(editor)
 
     editor.Commands.add('gjs-open-import-webpage', openImport(editor, {
       modalImportLabel: '',
