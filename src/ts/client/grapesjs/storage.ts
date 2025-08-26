@@ -223,17 +223,17 @@ async function progressiveLoadPages(editor: PublishableEditor, data: ProjectData
   let i = 0
   for (const page of data.pages) {
     loader && render(getLoaderHtml(`Loading page <strong>${++i}</strong> / ${data.pages.length}`, i, max), loader)
-    //await new Promise(resolve => setTimeout(resolve, 1000 * 60 * 1000))
     await nextFrame()
     const newPage = editor.Pages.add({
       ...page,
     })
   }
 
-  // Charger les styles, assets, etc. après les pages
-  loader && render(getLoaderHtml('Loading styles and assets', data.pages.length + 1, max), loader)
+  // Load styles, assets, symbols, etc. after pages
+  loader && render(getLoaderHtml('Loading styles, assets and symbols', data.pages.length + 1, max), loader)
   if (data.styles) editor.setStyle(data.styles)
   if (data.assets) editor.AssetManager.add(data.assets)
+  if (data.symbols) editor.Components.symbols.add(data.symbols)
 
   await nextFrame()
   setTimeout(() => {
@@ -242,7 +242,7 @@ async function progressiveLoadPages(editor: PublishableEditor, data: ProjectData
     editor.trigger('canvas:frame:load', editor)
   })
 
-  // Sélectionner la première page
+  // Select the first page
   const firstPage = editor.Pages.getAll()[0]
   if (firstPage) editor.Pages.select(firstPage)
 }
