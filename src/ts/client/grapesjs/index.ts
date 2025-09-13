@@ -406,6 +406,25 @@ export async function initEditor(config: EditorConfig) {
     editor.DomComponents.addType('image', typeConfig)
     editor.DomComponents.addType('iframe', typeConfig)
 
+    editor.DomComponents.getTypes().map(type => {
+    editor.DomComponents.addType(type.id, {
+      model: {
+        defaults: {
+          traits: [
+            {
+              type: 'text',
+              label: 'ID',
+              name: 'id',
+            },
+            ...(editor.DomComponents.getType(type.id)?.model.prototype.defaults.traits || []),
+          ]
+        }
+      }
+    })
+  })
+
+  
+
     // Adjustments to do when the editor is ready
     editor.on('load', () => {
       const views = editor.Panels.getPanel('views')
