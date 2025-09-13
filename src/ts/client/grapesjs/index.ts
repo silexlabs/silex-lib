@@ -406,6 +406,7 @@ export async function initEditor(config: EditorConfig) {
     editor.DomComponents.addType('image', typeConfig)
     editor.DomComponents.addType('iframe', typeConfig)
 
+    
     editor.DomComponents.getTypes().map(type => {
     editor.DomComponents.addType(type.id, {
       model: {
