@@ -403,12 +403,13 @@ export async function initEditor(config: EditorConfig) {
         },
       },
     }
-    editor.DomComponents.addType('image', typeConfig)
-    editor.DomComponents.addType('iframe', typeConfig)
+    const dc = editor.DomComponents;
+    dc.addType('image', typeConfig)
+    dc.addType('iframe', typeConfig)
 
-    
-    editor.DomComponents.getTypes().map(type => {
-    editor.DomComponents.addType(type.id, {
+    dc.getTypes().map(type => {
+      const dcmp = dc.getType(type.id)?.model.prototype;
+      dc.addType(type.id, {
       model: {
         defaults: {
           traits: [
@@ -417,10 +418,16 @@ export async function initEditor(config: EditorConfig) {
               label: 'ID',
               name: 'id',
             },
-            ...(editor.DomComponents.getType(type.id)?.model.prototype.defaults.traits || []),
+            ...(dcmp.defaults.traits || []),
           ]
-        }
-      }
+        },
+        init(...args) {
+            (dcmp.init.apply(this, args));
+            if (!this.getAttributes().id) {
+              this.addAttributes({ id: this.getId() });
+            }
+          }
+      },
     })
   })
 
