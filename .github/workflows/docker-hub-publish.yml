@@ -24,7 +24,7 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           echo "Detected version: $VERSION"
           if [[ "$VERSION" == *-* ]]; then
-            echo "tag=prerelease" >> $GITHUB_OUTPUT
+            echo "tag=canary" >> $GITHUB_OUTPUT
           else
             echo "tag=latest" >> $GITHUB_OUTPUT
           fi
