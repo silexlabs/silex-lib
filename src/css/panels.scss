@@ -259,3 +259,19 @@
     }
   }
 }
+.silex-quick-styling {
+  padding: 8px;
+  border-bottom: 1px solid var(--silex-border-color-strong);
+}
+
+.silex-quick-styling__title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.silex-quick-styling__btn {
+  width: 100%;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}

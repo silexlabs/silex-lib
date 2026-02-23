@@ -450,6 +450,68 @@ export async function initEditor(config: EditorConfig) {
     try {
       /* @ts-ignore */
       editor = grapesjs.init(config)
+      editor.on('load', () => {
+        const sectorsEl = document.querySelector('.gjs-sm-sectors')
+        if (!sectorsEl) return
+
+        
+        if (document.getElementById('silex-quick-styling')) return
+
+        const quick = document.createElement('div')
+        quick.id = 'silex-quick-styling'
+        quick.className = 'silex-quick-styling'
+
+        quick.innerHTML = `
+    <div class="silex-quick-styling__title">Quick Styling</div>
+    <button type="button"
+            class="silex-quick-styling__btn"
+            aria-label="Jump to Background styling">
+      Jump to Background
+    </button>
+  `
+
+        
+        sectorsEl.parentElement?.insertBefore(quick, sectorsEl)
+
+        const btn = quick.querySelector('button')
+        btn?.addEventListener('click', () => {
+          const sm = editor.StyleManager
+          const sector = sm.getSector('decorations')
+
+          if (!sector) {
+            console.warn('[Quick Styling] Decorations sector not found')
+            return
+          }
+
+          sector.set('open', true)
+
+          setTimeout(() => {
+            const root = document.querySelector('.gjs-sm-sectors')
+            if (!root) return
+
+            const properties = Array.from(
+              root.querySelectorAll('.gjs-sm-property')
+            ) as HTMLElement[]
+
+            const backgroundProp = properties.find(prop => {
+              const label = prop.querySelector('.gjs-sm-label')
+              return (label?.textContent || '')
+                .trim()
+                .toLowerCase()
+                .startsWith('background')
+            })
+
+            if (backgroundProp) {
+              backgroundProp.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+              })
+            } else {
+              console.warn('[Quick Styling] Background property not found')
+            }
+          }, 0)
+        })
+      })
     } catch(e) {
       console.error('Error initializing GrapesJs with plugins:', plugins, e)
       reject(e)
