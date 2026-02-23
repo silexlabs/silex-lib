@@ -478,11 +478,6 @@ export async function initEditor(config: EditorConfig) {
           const sm = editor.StyleManager
           const sector = sm.getSector('decorations')
 
-          if (!sector) {
-            console.warn('[Quick Styling] Decorations sector not found')
-            return
-          }
-
           sector.set('open', true)
 
           setTimeout(() => {
