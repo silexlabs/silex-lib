@@ -501,9 +501,7 @@ export async function initEditor(config: EditorConfig) {
                 behavior: 'smooth',
                 block: 'center',
               })
-            } else {
-              console.warn('[Quick Styling] Background property not found')
-            }
+            } 
           }, 0)
         })
       })
