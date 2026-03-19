@@ -46,6 +46,8 @@ import breadcrumbsPlugin from './breadcrumbs'
 import imgPlugin from './img'
 import liPlugin from './li'
 import flexPlugin from './flex'
+import basics from './basics'
+import basicsPlugin from './basics'
 import cssPropsPlugin from './css-props'
 import rateLimitPlugin from '@silexlabs/grapesjs-storage-rate-limit'
 import borderPugin from 'grapesjs-style-border'
@@ -104,6 +106,7 @@ const plugins = [
   {name: './LoginDialog', value: loginDialogPlugin},
   {name: '@silexlabs/grapesjs-loading', value: loadingPlugin},
   {name: './breadcrumbs', value: breadcrumbsPlugin},
+  {name: './basics', value: basicsPlugin},
   {name: './img', value: imgPlugin},
   {name: './li', value: liPlugin},
   {name: './flex', value: flexPlugin},
