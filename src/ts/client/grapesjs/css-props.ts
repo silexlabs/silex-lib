@@ -542,6 +542,15 @@ export default (editor: Editor, opts) => {
       default: '',
       full: true,
     }, { at: 0 })
+    editor.StyleManager.removeProperty('decorations', 'background-image')
+    editor.StyleManager.addProperty('decorations', {
+      name: 'Background image',
+      property: 'background-image',
+      type: 'text',
+      default: 'none',
+      full: true,
+      info: 'Set to "none" to remove existing background image',
+    }, { at: 1 })
     editor.StyleManager.removeProperty('decorations', 'border-radius')
     editor.StyleManager.addProperty('decorations', {
       name: 'Border radius',
