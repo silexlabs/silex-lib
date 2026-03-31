@@ -544,13 +544,13 @@ export default (editor: Editor, opts) => {
     }, { at: 0 })
     editor.StyleManager.removeProperty('decorations', 'background-image')
     editor.StyleManager.addProperty('decorations', {
-      name: 'Background image',
+      name: 'Background image (advanced)',
       property: 'background-image',
       type: 'text',
-      default: 'none',
+      default: '',
       full: true,
-      info: 'Set to "none" to remove existing background image',
-    }, { at: 1 })
+      info: 'Advanced: edit raw CSS background-image. Use "none" to remove hidden images.',
+    }, { at: 10 }) // To keep it at the end of the list as it is an advanced property that can override other background properties.
     editor.StyleManager.removeProperty('decorations', 'border-radius')
     editor.StyleManager.addProperty('decorations', {
       name: 'Border radius',
