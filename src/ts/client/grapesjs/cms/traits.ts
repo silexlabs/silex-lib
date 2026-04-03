@@ -10,7 +10,7 @@ import { html, render } from 'lit-html'
 
 export const UNWRAP_ID = 'plugin-unwrap'
 const LABEL = 'Unwrap content'
-const LABEL_DETAILS = 'Remove the component and keep its content'
+const LABEL_DETAILS = 'Remove the element and keep its content'
 
 export default function(editor: Editor/*, opts: EleventyPluginOptions */): void {
   // Add the new trait to all component types
@@ -40,20 +40,12 @@ export default function(editor: Editor/*, opts: EleventyPluginOptions */): void 
         for=${UNWRAP_ID}
         class="gjs-field gjs-field-checkbox silex-label"
         title=${LABEL_DETAILS}
-        style="width: 100%; background: var(--primaryColor);"
       >
         <input
           type="checkbox"
           id=${UNWRAP_ID}
           @change=${(event: Event) => doRender(el, (event.target as HTMLInputElement)?.checked)}
             ?checked=${remove}
-            style="
-            display: initial;
-            appearance: none;
-            width: 20px;
-            height: 20px;
-            position: absolute;
-            "
             >
           <i
             class="gjs-chk-icon"
