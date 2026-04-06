@@ -17,12 +17,50 @@
 
 import { Editor } from 'grapesjs'
 import { registerSector } from './sectors'
+import { displayedToStored } from '../assetUrl' // added
 
 /**
  * @fileoverview Adds various css properties
  */
 
 export default (editor: Editor, opts) => {
+  // custom StyleManager type for background-image with Asset Manager integration
+  editor.StyleManager.addType('background-image-asset', {
+    createInput({ editor: ed }) {
+      const btn = document.createElement('button')
+      btn.textContent = 'Select / Replace Image'
+      btn.title = 'Replace background image'
+      btn.className = 'gjs-btn-prim'
+      btn.style.cssText = 'width:100%; margin-top:4px;'
+
+      btn.addEventListener('click', () => {
+        ed.AssetManager.open({
+          select(asset, complete) {
+            const component = ed.getSelected()
+            if (!component) {
+              console.warn('[background-image] No component selected')
+              return
+            }
+
+            const rawSrc = asset.get('src')
+            const src = displayedToStored(rawSrc)
+
+            component.addStyle({
+              'background-image': `url("${src}")`,
+            })
+
+            // Close Asset Manager only on final selection (consistent with GrapesJS pattern)
+            if (complete && ed.AssetManager.close) {
+              ed.AssetManager.close()
+            }
+          },
+        })
+      })
+      
+      return btn
+    },
+  })
+
   editor.on('load', () => {
   /***************/
   /* General     */
@@ -546,7 +584,7 @@ export default (editor: Editor, opts) => {
     editor.StyleManager.addProperty('decorations', {
       name: 'Background image (advanced)',
       property: 'background-image',
-      type: 'text',
+      type: 'background-image-asset', // changed — was 'text'
       default: '',
       full: true,
       info: 'Advanced: edit raw CSS background-image. Use "none" to remove hidden images.',
