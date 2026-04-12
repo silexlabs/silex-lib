@@ -26,7 +26,7 @@ import { displayedToStored } from '../assetUrl' // added
 export default (editor: Editor, opts) => {
   // custom StyleManager type for background-image with Asset Manager integration
   editor.StyleManager.addType('background-image-asset', {
-    createInput({ editor: ed }) {
+    createInput() {
       const btn = document.createElement('button')
       btn.textContent = 'Select / Replace Image'
       btn.title = 'Replace background image'
@@ -34,24 +34,27 @@ export default (editor: Editor, opts) => {
       btn.style.cssText = 'width:100%; margin-top:4px;'
 
       btn.addEventListener('click', () => {
-        ed.AssetManager.open({
+        editor.AssetManager.open({
           select(asset, complete) {
-            const component = ed.getSelected()
-            if (!component) {
-              console.warn('[background-image] No component selected')
-              return
-            }
-
+            if (!asset) return
             const rawSrc = asset.get('src')
             const src = displayedToStored(rawSrc)
 
-            component.addStyle({
+            const rule = editor.StyleManager.getSelected()
+            if (!rule) {
+              console.warn('No style rule selected for background-image')
+              return
+            }
+
+            const style = rule.getStyle() || {}
+            rule.setStyle({
+              ...style,
               'background-image': `url("${src}")`,
             })
 
             // Close Asset Manager only on final selection (consistent with GrapesJS pattern)
-            if (complete && ed.AssetManager.close) {
-              ed.AssetManager.close()
+            if (complete && editor.AssetManager.close) {
+              editor.AssetManager.close()
             }
           },
         })
