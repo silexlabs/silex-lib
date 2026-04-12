@@ -17,12 +17,53 @@
 
 import { Editor } from 'grapesjs'
 import { registerSector } from './sectors'
+import { displayedToStored } from '../assetUrl' // added
 
 /**
  * @fileoverview Adds various css properties
  */
 
 export default (editor: Editor, opts) => {
+  // custom StyleManager type for background-image with Asset Manager integration
+  editor.StyleManager.addType('background-image-asset', {
+    createInput() {
+      const btn = document.createElement('button')
+      btn.textContent = 'Select / Replace Image'
+      btn.title = 'Replace background image'
+      btn.className = 'gjs-btn-prim'
+      btn.style.cssText = 'width:100%; margin-top:4px;'
+
+      btn.addEventListener('click', () => {
+        editor.AssetManager.open({
+          select(asset, complete) {
+            if (!asset) return
+            const rawSrc = asset.get('src')
+            const src = displayedToStored(rawSrc)
+
+            const rule = editor.StyleManager.getSelected()
+            if (!rule) {
+              console.warn('No style rule selected for background-image')
+              return
+            }
+
+            const style = rule.getStyle() || {}
+            rule.setStyle({
+              ...style,
+              'background-image': `url("${src}")`,
+            })
+
+            // Close Asset Manager only on final selection (consistent with GrapesJS pattern)
+            if (complete && editor.AssetManager.close) {
+              editor.AssetManager.close()
+            }
+          },
+        })
+      })
+      
+      return btn
+    },
+  })
+
   editor.on('load', () => {
   /***************/
   /* General     */
@@ -542,6 +583,15 @@ export default (editor: Editor, opts) => {
       default: '',
       full: true,
     }, { at: 0 })
+    editor.StyleManager.removeProperty('decorations', 'background-image')
+    editor.StyleManager.addProperty('decorations', {
+      name: 'Background image (advanced)',
+      property: 'background-image',
+      type: 'background-image-asset', // changed — was 'text'
+      default: '',
+      full: true,
+      info: 'Advanced: edit raw CSS background-image. Use "none" to remove hidden images.',
+    }, { at: 10 }) // To keep it at the end of the list as it is an advanced property that can override other background properties.
     editor.StyleManager.removeProperty('decorations', 'border-radius')
     editor.StyleManager.addProperty('decorations', {
       name: 'Border radius',
