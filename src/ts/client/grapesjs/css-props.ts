@@ -17,7 +17,6 @@
 
 import { Editor } from 'grapesjs'
 import { registerSector } from './sectors'
-import { displayedToStored } from '../assetUrl' // added
 
 /**
  * @fileoverview Adds various css properties
@@ -36,8 +35,7 @@ export default (editor: Editor, opts) => {
         editor.AssetManager.open({
           select(asset, complete) {
             if (!asset) return
-            const rawSrc = asset.get('src')
-            const src = displayedToStored(rawSrc)
+            const src = asset.getSrc?.() ?? asset.get('src')
 
             const rule = editor.StyleManager.getSelected()
             if (!rule) {
