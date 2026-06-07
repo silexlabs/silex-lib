@@ -92,9 +92,9 @@
     "build:plugins:server": "tsc -p tsconfig-plugins-server.json",
     "build:plugins:client": "tsc -p tsconfig-plugins-client.json",
     "lint": "eslint \"src/ts/**/*.ts\"",
-    "lint:fix": "$npm_execpath run lint -- --fix",
+    "lint:fix": "yarn lint --fix",
     "test": "node --experimental-vm-modules `node_modules jest`/jest/bin/jest.js",
-    "test:watch": "$npm_execpath test -- --watch",
+    "test:watch": "yarn test --watch",
     "prepare": "husky"
   },
   "dependencies": {
