@@ -23,9 +23,9 @@ jobs:
           cache: 'yarn'
 
       - run: yarn install --frozen-lockfile
-      - run: yarn run lint --if-present
-      - run: yarn run build --if-present
-      - run: yarn test --if-present
+      - run: if jq -e ".scripts.lint" package.json >/dev/null 2>&1; then yarn run lint; fi
+      - run: if jq -e ".scripts.build" package.json >/dev/null 2>&1; then yarn run build; fi
+      - run: if jq -e ".scripts.test" package.json >/dev/null 2>&1; then yarn test; fi
 
       - name: Extract version and tag
         id: version
