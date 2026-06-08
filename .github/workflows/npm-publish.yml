@@ -39,4 +39,4 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Publish to npm
-        run: npm publish --tag ${{ steps.version.outputs.tag }} --access public
+        run: npm publish --provenance --tag ${{ steps.version.outputs.tag }} --access public
