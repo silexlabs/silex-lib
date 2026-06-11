@@ -305,6 +305,22 @@ export class PublicationManager {
       // Get the data to publish, clone the objects because plugins can change it
       const projectData = { ...this.editor.getProjectData() as WebsiteData }
       const siteSettings = { ...this.editor.getModel().get('settings') as WebsiteSettings }
+      const pages = (projectData.pages as any[]) || []
+      const hasIndex = pages.some(page => {
+      const name = page?.name || ''
+      return name.toLowerCase() === 'index'
+       })
+       console.log(hasIndex);
+      if (!hasIndex) {
+        this.editor.runCommand('notifications:add', {
+          id: 'publish-missing-index-warning',
+          type: 'warning',
+          group: 'publication',
+          message:
+            'No page named "index" found. The first page will be used as homepage. Rename a page to "index" to control homepage.',
+        })
+      }      
+      
       // Check for missing SEO tags and warn user
       this.checkSeoTags(siteSettings)
       let preventDefaultStart = false
@@ -526,6 +542,8 @@ export class PublicationManager {
   }
 
   async *getHtmlFilesYield(siteSettings: WebsiteSettings, preventDefault): AsyncGenerator<WebsiteFile | undefined> {
+    const pages = this.editor.Pages.getAll()
+    const hasIndex = pages.some(p => getPageSlug(p.get('name')) === 'index')
     for (const page of this.editor.Pages.getAll()) {
       // Clone the settings because plugins can change them
       const clonedSiteSettings = { ...siteSettings }
@@ -544,7 +562,13 @@ export class PublicationManager {
       yield undefined // Yield control to avoid blocking the main thread
 
       // Transform the file paths
-      const slug = getPageSlug(page.get('name'))
+      let slug = getPageSlug(page.get('name'));
+      // if no index page exist make the first page as home page
+      const firstPageId = pages[0]?.getId()
+
+      if (!hasIndex && page.getId() === firstPageId) {
+        slug = 'index'
+      }
       const cssInitialPath = `/css/${slug}-${await hashString(cssContent)}.css`
       const htmlInitialPath = `/${slug}.html`
       const cssPermalink = transformPermalink(this.editor, cssInitialPath, ClientSideFileType.CSS, Initiator.HTML)
